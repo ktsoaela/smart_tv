@@ -58,12 +58,62 @@ The browser Back button and the Android back gesture also go back one screen.
 | Media player | Video and music with resume, ±10 s, Next/Previous in the folder, and autoplay next. Photos with left/right browsing, a 5-second slideshow, and Set as wallpaper |
 | My List | Titles you saved |
 | Search | An on-screen keyboard, genre shortcuts, and live results. A physical keyboard types too. The microphone key uses the browser's speech recognition where it exists |
-| Settings | Display and motion, wallpaper, sound, playback, remote and keys, Get Google TV, and about (companion status, refresh Chrome shortcuts, reset) |
+| Setup | First-run steps: Home style, apps, weather, and wallpaper |
+| Settings | Home screen, display and motion, wallpaper, weather and time, sound, playback, remote and keys, Get Google TV, and about (companion status, refresh Chrome shortcuts, reset) |
 | Details | Resume, play from start, My List, episodes for series, and More like this |
 | Preview | A 60-second preview. The controls hide after 4 seconds; any key brings them back. Left and right skip 10 seconds. Captions and Up next are optional |
 | Ambient | After two minutes idle, slow artwork and the time. Any key returns |
 
 Weather is a sample panel. The preview is a timer on generated artwork. Saved titles, preview progress, and settings stay in this browser. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
+
+### Setup
+
+The first time Smart TV opens, it walks you through four steps: how busy Home should be (Minimal or Busy), which apps go on Home, the weather location, and a wallpaper. Run it again from Settings → Home screen → **Run setup again**.
+
+| Home style | What's on it |
+| --- | --- |
+| Minimal | The time, the date, today's weather, your apps, Continue watching, Continue on this PC, and My List |
+| Busy | Featured titles, Continue watching, your apps, Top 10, this PC's videos and music, live channels, recommendations, Movies, Series, and My List |
+
+### Managing apps
+
+Hold OK (or press `M`) on any app, on Home or in Apps:
+
+| Option | What it does |
+| --- | --- |
+| Move | Left and right move the tile. OK drops it. The order is the same on Home and in Apps |
+| Rename | Changes the name on the tile |
+| Change web address | For websites you added |
+| Remove app / Hide from Home | Websites and programs you added are removed. Built-in and Chrome apps are hidden; select them under Apps → Hidden apps to put them back |
+
+**Add app** (the + tile at the end of the apps row, and in Apps) adds:
+
+- **A website or web app**: type its address (for example `showmax.com`) and a name. It opens in Chrome in its own window.
+- **A program on this PC**: pick from the Start menu. Needs the companion, and only works on the PC itself.
+- **Android apps (APK)**: these can't install on Windows. On a Google TV or Android TV, sideload them with the Downloader app. Here, add the service's website instead.
+
+### My List
+
+My List holds titles, web links, and files from My PC, in the order you choose.
+
+- Add a title: My List on its details page, or hold OK on its tile.
+- Add a link: My List → **Add a link**, then type the address and a name.
+- Add a file: in My PC, hold OK on a video, song, or photo → **Add to My List**.
+- Hold OK on anything in My List to move it earlier or later, rename or re-address a link, or remove it.
+
+### Weather and time
+
+The clock, the date, and the time zone come from this computer. The weather comes from [Open-Meteo](https://open-meteo.com/) for:
+
+- **This computer's location** (the default): Windows location services through Chrome, which asks once. If those are off, the network's approximate location (ipapi.co).
+- **A city you choose**, by name.
+- **No weather**.
+
+Set this in Settings → Weather & time, along with °C or °F. The weather shows in the top bar, on Minimal Home, and in the Weather app, and updates every 20 minutes.
+
+### Top bar
+
+Scrolling down hides the top bar. Scrolling up, or reaching the top of the page, brings it back. With the remote, moving up to the first row brings it back.
 
 ### Apps and Chrome shortcuts
 

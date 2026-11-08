@@ -284,7 +284,7 @@ body[data-screen="app"] .bd-scrim {
   transition: transform 0.5s var(--ease-out), opacity 0.35s var(--ease-out);
 }
 
-body.in-rows .topbar {
+body.bar-hidden .topbar {
   transform: translate3d(0, -110%, 0);
   opacity: 0;
   pointer-events: none;

@@ -1,0 +1,555 @@
+/* Smart TV — home styles, setup, app and list editing, text entry, weather.
+   Loaded after tv.css and media.css and uses their tokens. */
+
+/* ---------- Top bar: weather chip, and room for the focus panel when the bar is back ---------- */
+
+.wx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wx-chip .ic {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+body.in-rows:not(.bar-hidden) .focus-info {
+  top: calc(7vh + 4.5rem);
+}
+
+/* ---------- Minimal home ---------- */
+
+.hero--minimal {
+  height: 56vh;
+  min-height: 24rem;
+  justify-content: flex-end;
+  padding-bottom: 2.5rem;
+}
+
+.mh .kicker {
+  margin-bottom: 0.25rem;
+}
+
+.mh-clock {
+  font-size: 8.5rem;
+  font-weight: 250;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0.3rem 2.5rem rgba(0, 0, 0, 0.35);
+}
+
+.mh-date {
+  margin-top: 0.4rem;
+  font-size: 1.7rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.mh-wx {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 3.5rem;
+  margin-top: 1.5rem;
+}
+
+.mh-wx > .ic {
+  width: 3rem;
+  height: 3rem;
+  stroke-width: 1.6;
+}
+
+.mh-temp {
+  font-size: 2.8rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.mh-cond {
+  font-size: 1.15rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.mh-place {
+  display: block;
+  color: var(--faint);
+}
+
+.mh-note {
+  font-size: 1.1rem;
+  color: var(--faint);
+}
+
+body.home-minimal .rows {
+  padding-bottom: 12rem;
+}
+
+body.home-minimal .focus-info {
+  display: none;
+}
+
+/* ---------- App tiles: add, moving, hidden, programs ---------- */
+
+.app-art--add {
+  background: rgba(255, 255, 255, 0.06);
+  border: 0.14rem dashed rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+}
+
+.app-art--add > .ic {
+  width: 2.75rem;
+  height: 2.75rem;
+  filter: none;
+}
+
+.app-tile--add:focus .app-art--add {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.app-icon--small {
+  width: 24%;
+  image-rendering: auto;
+}
+
+.app-tile.is-moving .app-art {
+  transform: perspective(60rem) scale(1.1) translate3d(0, -0.6rem, 0);
+  box-shadow: 0 0 0 0.22rem #fff, 0 0 0 0.6rem rgba(255, 255, 255, 0.25), 0 1.75rem 3.5rem rgba(0, 0, 0, 0.6);
+  animation: wiggle 0.9s ease-in-out infinite;
+}
+
+.app-tile.is-moving .tile-cap::before {
+  content: "◀ ▶  ";
+  letter-spacing: 0.1em;
+}
+
+@keyframes wiggle {
+  25% { rotate: -1.2deg; }
+  75% { rotate: 1.2deg; }
+}
+
+.grid--hidden .app-art {
+  filter: grayscale(0.8) brightness(0.65);
+}
+
+.grid--hidden .app-tile:focus .app-art {
+  filter: none;
+}
+
+.lede--tight {
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.prog-ic {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.folder-tile--add .folder-ic {
+  border: 0.12rem dashed rgba(255, 255, 255, 0.35);
+  background: transparent;
+}
+
+/* ---------- Text entry ---------- */
+
+.overlay[data-layout="keyboard"] {
+  align-items: center;
+  justify-content: center;
+}
+
+.te {
+  position: relative;
+  width: min(66rem, 94vw);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 2rem 2.25rem 1.5rem;
+  border-radius: 2rem;
+  background: var(--glass-strong);
+  animation: source-in 0.4s var(--ease-out) both;
+}
+
+.te h2 {
+  margin: 0.35rem 0 1rem;
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.te-field {
+  display: flex;
+  align-items: center;
+  min-height: 4.25rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  font-size: 1.8rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.te-text {
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+}
+
+.te-text:empty::before {
+  content: attr(data-placeholder);
+  color: var(--faint);
+}
+
+.te-text:empty + .caret {
+  margin-left: 0;
+  order: -1;
+  margin-right: 0.35rem;
+}
+
+.te-error {
+  min-height: 1.6rem;
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #ff8a8f;
+}
+
+.te-keys {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.45rem;
+}
+
+.te-keys .key {
+  height: 3.3rem;
+  font-size: 1.4rem;
+  text-transform: none;
+}
+
+.te-keys .key--space {
+  grid-column: span 4;
+}
+
+.te-keys .key.is-on {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.te-actions {
+  margin-top: 1.25rem;
+}
+
+/* ---------- Weather settings ---------- */
+
+.wx-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.9rem 1.25rem;
+  border-radius: 1rem;
+  font-size: 1.15rem;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wx-status .ic {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.unit-pill {
+  flex: none;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.switch-row:focus .unit-pill {
+  background: rgba(11, 13, 18, 0.12);
+}
+
+/* ---------- Setup ---------- */
+
+body[data-screen="setup"] .bd-scrim {
+  background-color: rgba(7, 8, 11, 0.55);
+}
+
+.setup {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem var(--safe-x);
+}
+
+.setup-dots {
+  position: absolute;
+  top: var(--safe-y);
+  left: 50%;
+  display: flex;
+  gap: 0.5rem;
+  transform: translateX(-50%);
+}
+
+.setup-dots span {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  transition: width 0.4s var(--ease-spring), background-color 0.3s;
+}
+
+.setup-dots .done {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.setup-dots .on {
+  width: 2rem;
+  background: #fff;
+}
+
+.setup-body {
+  width: min(72rem, 100%);
+  text-align: center;
+  animation: enter 0.5s var(--ease-out) both;
+}
+
+.setup-body > .lede {
+  margin: 0 auto;
+}
+
+.setup-body > .actions {
+  justify-content: center;
+}
+
+.setup-logo {
+  width: 6rem;
+  height: 6rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.setup-title {
+  margin: 0.4rem 0 0.9rem;
+  font-size: 3.6rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.setup-panel {
+  margin: 1.5rem auto 0;
+  max-width: 54rem;
+  padding: 1.75rem;
+  border-radius: var(--radius-l);
+  text-align: left;
+}
+
+.setup-apps {
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.style-cards {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1.75rem;
+}
+
+.style-card {
+  display: grid;
+  gap: 0.4rem;
+  width: 26rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  transition: transform 0.4s var(--ease-spring), background-color 0.2s, color 0.2s, box-shadow 0.3s, scale 0.15s;
+}
+
+.style-card.is-chosen {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.style-card:focus {
+  color: var(--ink);
+  background: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.5);
+}
+
+.style-name {
+  margin-top: 0.75rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.style-desc {
+  font-size: 1.05rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.style-card:focus .style-desc {
+  color: rgba(11, 13, 18, 0.7);
+}
+
+.mock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  height: 13rem;
+  padding: 0.9rem;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: linear-gradient(160deg, #26324a, #0e121a);
+}
+
+.mock i {
+  display: block;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.m-clock {
+  width: 40%;
+  height: 2.6rem;
+  margin-top: 1.5rem;
+  background: rgba(255, 255, 255, 0.75) !important;
+}
+
+.m-line {
+  width: 30%;
+  height: 0.6rem;
+}
+
+.m-hero {
+  height: 4.5rem;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12)) !important;
+}
+
+.m-row {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.m-row i {
+  flex: none;
+  width: 2.6rem;
+  height: 1.6rem;
+}
+
+.mock--minimal .m-row:first-of-type {
+  margin-top: auto;
+}
+
+.m-row--wide i {
+  width: 4.2rem;
+  height: 2.3rem;
+}
+
+.m-row--tall i {
+  width: 1.7rem;
+  height: 2.5rem;
+}
+
+.pick-tile .app-art {
+  transition: filter 0.25s, transform 0.5s var(--ease-spring), box-shadow 0.35s var(--ease-out);
+}
+
+.pick-tile:not(.is-picked) .app-art {
+  filter: grayscale(0.85) brightness(0.55);
+}
+
+.pick-tile:focus .app-art {
+  filter: none;
+}
+
+.pick-check {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pick-tile.is-picked .pick-check {
+  color: var(--ink);
+  background: var(--ok);
+}
+
+.pick-check .ic {
+  width: 1.2rem;
+  height: 1.2rem;
+  stroke-width: 2.6;
+}
+
+.setup-summary {
+  display: grid;
+  gap: 0.6rem;
+  width: fit-content;
+  margin: 1.25rem auto 1.5rem;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: 1.3rem;
+}
+
+.setup-summary li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.setup--done .empty-mark {
+  color: var(--ok);
+}
+
+@media (max-width: 760px) {
+  .style-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .style-card {
+    width: 100%;
+  }
+
+  .setup-title {
+    font-size: 2.4rem;
+  }
+
+  .mh-clock {
+    font-size: 5.5rem;
+  }
+
+  .te-keys {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .te-keys .key--space {
+    grid-column: span 3;
+  }
+}

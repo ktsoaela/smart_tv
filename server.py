@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import hashlib
 import json
 import mimetypes
 import os
@@ -26,6 +27,7 @@ import socket
 import string
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -275,6 +277,83 @@ def chrome_apps(force: bool = False) -> list[dict]:
     data = sorted(apps.values(), key=lambda a: a["name"].casefold())
     _apps_cache.update(at=time.time(), data=data)
     return data
+
+
+_programs_cache: dict = {"at": 0.0, "data": []}
+SKIP_PROGRAM = ("uninstall", "readme", "read me", "help", "documentation", "website", "license", "release notes", "manual")
+
+
+def programs(force: bool = False) -> list[dict]:
+    """Programs from the Start menu (yours and all users'), for "Add app → Program on this PC"."""
+    if not IS_WINDOWS:
+        return []
+    if not force and _programs_cache["data"] and time.time() - _programs_cache["at"] < 300:
+        return _programs_cache["data"]
+    roots = [
+        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+        Path(os.environ.get("ProgramData", "C:\\ProgramData")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+    ]
+    quoted = ",".join("'" + str(r).replace("'", "''") + "'" for r in roots if r.is_dir())
+    if not quoted:
+        return []
+    script = (
+        "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+        "$sh=New-Object -ComObject WScript.Shell;"
+        f"Get-ChildItem -Path {quoted} -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {{"
+        "$l=$sh.CreateShortcut($_.FullName);"
+        "[pscustomobject]@{path=$_.FullName;name=$_.BaseName;args=$l.Arguments;target=$l.TargetPath}"
+        "} | ConvertTo-Json -Compress"
+    )
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                             capture_output=True, timeout=30, creationflags=0x08000000)
+        raw = out.stdout.decode("utf-8", "replace").strip()
+        rows = json.loads(raw) if raw else []
+        if isinstance(rows, dict):
+            rows = [rows]
+    except (OSError, ValueError, subprocess.SubprocessError):
+        rows = []
+    found: dict[str, dict] = {}
+    for row in rows:
+        name = (row.get("name") or "").strip()
+        target = row.get("target") or ""
+        if not name or "--app-id=" in (row.get("args") or ""):
+            continue
+        if any(word in name.lower() for word in SKIP_PROGRAM):
+            continue
+        if target and not target.lower().endswith(".exe"):
+            continue
+        key = name.casefold()
+        if key in found:
+            continue
+        pid = hashlib.sha1(row["path"].encode("utf-8")).hexdigest()[:12]
+        found[key] = {"id": pid, "name": name, "lnk": row["path"], "target": target}
+    data = sorted(found.values(), key=lambda p: p["name"].casefold())
+    _programs_cache.update(at=time.time(), data=data)
+    return data
+
+
+def program_icon(program: dict) -> str | None:
+    """Extract the program's icon to a cached PNG (once per program)."""
+    target = program.get("target") or ""
+    if not target or not os.path.isfile(target):
+        return None
+    cache = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "SmartTV" / "icons"
+    cache.mkdir(parents=True, exist_ok=True)
+    out = cache / f"{program['id']}.png"
+    if out.is_file():
+        return str(out)
+    script = (
+        "Add-Type -AssemblyName System.Drawing;"
+        f"$i=[System.Drawing.Icon]::ExtractAssociatedIcon('{target.replace(chr(39), chr(39) * 2)}');"
+        f"if($i){{$i.ToBitmap().Save('{str(out).replace(chr(39), chr(39) * 2)}',[System.Drawing.Imaging.ImageFormat]::Png)}}"
+    )
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                       capture_output=True, timeout=15, creationflags=0x08000000)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return str(out) if out.is_file() else None
 
 
 def app_icon_path(app: dict) -> str | None:
@@ -662,6 +741,28 @@ class Handler(SimpleHTTPRequestHandler):
         content_type = "image/png" if path.lower().endswith(".png") else "image/x-icon"
         return self.send_path(path, content_type, "private, max-age=86400")
 
+    def api_programs(self, q):
+        force = (q.get("refresh") or ["0"])[0] == "1"
+        self.send_json({"programs": [{"id": p["id"], "name": p["name"]} for p in programs(force)]})
+
+    def api_program_icon(self, q):
+        pid = (q.get("id") or [""])[0]
+        program = next((p for p in programs() if p["id"] == pid), None)
+        path = program and program_icon(program)
+        if not path:
+            return self.fail(HTTPStatus.NOT_FOUND, "No icon")
+        return self.send_path(path, "image/png", "private, max-age=86400")
+
+    def api_launch_program(self, _q):
+        if not self.local_only():
+            return None
+        pid = str(self.read_json().get("id") or "")
+        program = next((p for p in programs() if p["id"] == pid), None)
+        if not program:
+            return self.fail(HTTPStatus.NOT_FOUND, "That program is no longer in the Start menu")
+        os.startfile(program["lnk"])  # type: ignore[attr-defined]
+        self.send_json({"ok": True})
+
     def api_wallpaper(self, _q):
         path = wallpaper_path()
         if not path:
@@ -733,6 +834,9 @@ ROUTES = {
     ("GET", "/api/apps"): Handler.api_apps,
     ("GET", "/api/icon"): Handler.api_icon,
     ("GET", "/api/wallpaper"): Handler.api_wallpaper,
+    ("GET", "/api/programs"): Handler.api_programs,
+    ("GET", "/api/program-icon"): Handler.api_program_icon,
+    ("POST", "/api/launch-program"): Handler.api_launch_program,
     ("GET", "/api/volume"): Handler.api_volume_get,
     ("POST", "/api/volume"): Handler.api_volume_set,
     ("POST", "/api/launch"): Handler.api_launch,

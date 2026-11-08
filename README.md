@@ -33,6 +33,8 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 - **Plays your own media.** My PC browses this computer's folders with the remote and plays videos, music, and photos, with resume, Next/Previous, and a slideshow.
 - **Opens your streaming apps.** Netflix, SABC Plus, DStv, Spotify, and YouTube Music, plus every shortcut you made in Chrome, with its own icon.
 - **Feels like a TV.** A volume panel when the volume changes in full screen, your desktop wallpaper behind Home, and a Source button that switches to the browser or the desktop like changing HDMI input.
+- **Is yours to arrange.** Add websites and PC programs as apps; move, rename, hide, or remove any app; keep titles, links, and files in My List in your own order.
+- **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather for this computer's location, and a wallpaper.
 - **Keeps your list,** progress, and settings in this browser.
 
 ---
@@ -63,6 +65,7 @@ That starts the companion on `http://localhost:8787` and opens it. The companion
 | `server.py` | Companion: files and streaming, Chrome shortcuts, wallpaper, system volume, sources |
 | `css/tv.css` | 10-foot layout, glass materials, focus motion |
 | `css/media.css` | Media player, My PC, wallpaper, volume panel, source bar |
+| `css/home.css` | Home styles, setup, app and list editing, on-screen keyboard, weather |
 | `js/tv.js` | Screens, spatial focus, input, media player, apps, sources |
 | `docs/guide.md` | Keys, network URL, Google TV hardware |
 | `assets/logo.svg` | Mark |

@@ -51,7 +51,7 @@ const apps = [
   { id: "livedesk", name: "Live Desk", icon: "broadcast", mode: "kind", kind: "live", blurb: "The channels on the live row.", colors: ["#2a1216", "#ff6b6b"] },
   { id: "spotlight", name: "Spotlight", icon: "sparkle", mode: "all", blurb: "Every title on this TV.", colors: ["#241a33", "#d2b4ff"] },
   { id: "shelf", name: "My List", icon: "bookmark", mode: "list", blurb: "Titles you saved on this TV.", colors: ["#14261c", "#8fd0a8"] },
-  { id: "weather", name: "Weather", icon: "sun", mode: "panel", blurb: "Clear over the demo city. This panel is a sample, not a live forecast.", colors: ["#163042", "#9ad7ff"] }
+  { id: "weather", name: "Weather", icon: "sun", mode: "panel", blurb: "The forecast for this computer's location.", colors: ["#163042", "#9ad7ff"] }
 ];
 
 const paths = [
@@ -89,8 +89,10 @@ const NAV = [
 ];
 
 const SETTINGS_TABS = [
+  { id: "home", label: "Home screen" },
   { id: "display", label: "Display & motion" },
   { id: "wallpaper", label: "Wallpaper" },
+  { id: "weather", label: "Weather & time" },
   { id: "sound", label: "Sound" },
   { id: "playback", label: "Playback" },
   { id: "input", label: "Remote & keys" },
@@ -108,7 +110,14 @@ const DEFAULT_PREFS = {
   remoteOpen: false,
   seenTips: false,
   wallpaper: "desktop",
-  appVolume: 0.8
+  appVolume: 0.8,
+  homeStyle: "busy",
+  onboarded: false,
+  weather: { mode: "auto", unit: "", lat: null, lon: null, place: "", locatedAt: 0 },
+  customApps: [],
+  hiddenApps: [],
+  appOrder: [],
+  appNames: {}
 };
 
 // The companion (server.py) unlocks files, Chrome shortcuts, wallpaper, system volume, and sources.
@@ -135,6 +144,8 @@ const state = {
   mediaProgress: {},
   path: null,
   media: null,
+  myList: [],
+  setupStep: 0,
   list: new Set(),
   prefs: { ...DEFAULT_PREFS },
   position: 0,
@@ -186,10 +197,20 @@ const ui = {
   volTimer: 0,
   volBusy: false,
   slideTimer: 0,
-  pointerScroll: false,
   mediaSaveAt: 0,
   wallUrl: "",
-  signalTimer: 0
+  signalTimer: 0,
+  weather: null,
+  weatherError: "",
+  weatherBusy: false,
+  moving: null,
+  te: null,
+  teReturn: null,
+  teTyped: false,
+  programs: null,
+  lastScrollTop: 0,
+  pointerScrollAt: 0,
+  progScrollAt: 0
 };
 
 /* ---------- Icons ---------- */
@@ -244,7 +265,17 @@ const ICONS = {
   tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8M9.5 2.5L12 5l2.5-2.5"/>',
   prev: '<path class="f" d="M19 6.2v11.6c0 .7-.8 1.1-1.4.7l-8.4-5.8c-.5-.4-.5-1.1 0-1.4l8.4-5.8c.6-.4 1.4 0 1.4.7z"/><path d="M5.5 5.5v13"/>',
   drive: '<rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 12h.01M10.5 12h6"/>',
-  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/>'
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/>',
+  edit: '<path d="M5 19l1-4L16 5l3 3L9 18z"/><path d="M14 7l3 3"/>',
+  move: '<path d="M12 4v16M4 12h16M12 4l-2.5 2.5M12 4l2.5 2.5M12 20l-2.5-2.5M12 20l2.5-2.5M4 12l2.5-2.5M4 12l2.5 2.5M20 12l-2.5-2.5M20 12l-2.5 2.5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
+  android: '<path d="M6.5 16v-4a5.5 5.5 0 0 1 11 0v4z"/><path d="M8.2 7.2L6.8 5.2M15.8 7.2l1.4-2"/><circle class="f" cx="9.6" cy="12" r=".9"/><circle class="f" cx="14.4" cy="12" r=".9"/><path d="M6.5 16h11v2.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/>',
+  moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
+  cloudSun: '<path d="M8 3.5v1.3M3.6 5.4l.9.9M2.4 9.8h1.3"/><path d="M11.2 7.6a4 4 0 0 0-6.6 3.8"/><path d="M8.5 19.5h9a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8.4 13.5a3 3 0 0 0 .1 6z"/>',
+  rain: '<path d="M7 15h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 6.1 4.5 4.5 0 0 0 7 15z"/><path d="M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5"/>',
+  snow: '<path d="M7 15h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 6.1 4.5 4.5 0 0 0 7 15z"/><path d="M8 19h.01M12 20.5h.01M16 19h.01"/>',
+  storm: '<path d="M7 15h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 6.1 4.5 4.5 0 0 0 7 15z"/><path d="M12.5 15.5l-2 3h3l-2 3"/>',
+  fog: '<path d="M4 8h16M6 12h12M4 16h16M8 20h8"/>'
 };
 
 function icon(name, cls = "") {
@@ -312,8 +343,46 @@ function chromeOnlyApps() {
   }));
 }
 
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return String(url || "");
+  }
+}
+
+function customApps() {
+  return (state.prefs.customApps || []).map((c) => ({
+    ...c,
+    mode: c.kind === "program" ? "program" : "web",
+    custom: true,
+    blurb: c.kind === "program" ? "A program on this PC." : `${hostOf(c.url)} · opens in Chrome`,
+    iconSrc: c.kind === "program" && server.ok ? withKey(`/api/program-icon?id=${encodeURIComponent(c.programId)}`) : "",
+    colors: c.colors || ["#141a24", "#7aa2ff"]
+  }));
+}
+
+// Every app, in the order you arranged them (new ones go last), with your names applied.
 function allApps() {
-  return [...streamingApps(), ...chromeOnlyApps(), ...apps];
+  const base = [...streamingApps(), ...chromeOnlyApps(), ...customApps(), ...apps];
+  const order = state.prefs.appOrder || [];
+  const rank = (id) => {
+    const i = order.indexOf(id);
+    return i === -1 ? 1e6 : i;
+  };
+  const names = state.prefs.appNames || {};
+  return base
+    .map((app, i) => ({ app, i }))
+    .sort((a, b) => rank(a.app.id) - rank(b.app.id) || a.i - b.i)
+    .map(({ app }) => (names[app.id] ? { ...app, name: names[app.id] } : app));
+}
+
+function isHidden(id) {
+  return (state.prefs.hiddenApps || []).includes(id);
+}
+
+function visibleApps() {
+  return allApps().filter((app) => !isHidden(app.id));
 }
 
 function appById(id) {
@@ -499,8 +568,28 @@ function load() {
   state.progress = saved && saved.progress && typeof saved.progress === "object" ? saved.progress : { ...SAMPLE_PROGRESS };
   state.watchedAt = saved && saved.watchedAt && typeof saved.watchedAt === "object" ? saved.watchedAt : {};
   state.mediaProgress = saved && saved.mediaProgress && typeof saved.mediaProgress === "object" ? saved.mediaProgress : {};
-  state.list = new Set(saved && Array.isArray(saved.list) ? saved.list.filter(itemById) : []);
+  const savedList = saved && Array.isArray(saved.myList) ? saved.myList
+    : saved && Array.isArray(saved.list) ? saved.list.map((id) => ({ kind: "title", id })) : [];
+  state.myList = savedList.filter(validListEntry);
+  syncList();
   state.prefs = { ...DEFAULT_PREFS, ...(saved && saved.prefs ? saved.prefs : {}) };
+  const p = state.prefs;
+  p.weather = { ...DEFAULT_PREFS.weather, ...(p.weather || {}) };
+  for (const key of ["customApps", "hiddenApps", "appOrder"]) if (!Array.isArray(p[key])) p[key] = [];
+  if (!p.appNames || typeof p.appNames !== "object") p.appNames = {};
+  if (!["busy", "minimal"].includes(p.homeStyle)) p.homeStyle = "busy";
+}
+
+function validListEntry(e) {
+  if (!e || typeof e !== "object") return false;
+  if (e.kind === "title") return !!itemById(e.id);
+  if (e.kind === "link") return typeof e.url === "string" && /^https?:/i.test(e.url) && !!e.id;
+  if (e.kind === "file") return typeof e.path === "string" && !!e.id;
+  return false;
+}
+
+function syncList() {
+  state.list = new Set(state.myList.filter((e) => e.kind === "title").map((e) => e.id));
 }
 
 function save() {
@@ -509,7 +598,7 @@ function save() {
       progress: state.progress,
       watchedAt: state.watchedAt,
       mediaProgress: state.mediaProgress,
-      list: [...state.list],
+      myList: state.myList,
       prefs: state.prefs
     }));
   } catch {
@@ -549,6 +638,7 @@ function topbar() {
       <nav class="tabs glass" data-zone="nav" aria-label="Sections">${tabs}</nav>
       <div class="top-end">
         <button type="button" class="tab tab--icon" data-key="top-source" data-action="source" aria-label="Source (switch to browser or desktop)">${icon("input")}</button>
+        <span id="wx-chip" class="wx-chip" hidden></span>
         <time id="clock" class="clock"></time><span class="avatar" aria-hidden="true">G</span>
       </div>
     </header>`;
@@ -577,16 +667,16 @@ function tile(item, section, opts = {}) {
     </button>`;
 }
 
-function appTile(app, section, preferred = false) {
-  const external = app.mode === "web" || app.mode === "chrome";
+function appTile(app, section, preferred = false, action = "app") {
+  const external = app.mode === "web" || app.mode === "chrome" || app.mode === "program";
   let face;
-  if (app.iconSrc) face = `<img class="app-icon" src="${esc(app.iconSrc)}" alt="" loading="lazy" decoding="async" />`;
+  if (app.iconSrc) face = `<img class="app-icon${app.mode === "program" ? " app-icon--small" : ""}" src="${esc(app.iconSrc)}" alt="" loading="lazy" decoding="async" />`;
   else if (external) face = `<span class="app-word app-word--${app.word || "plain"}">${esc(app.name)}</span>`;
   else face = icon(app.icon);
   const via = app.chromeId ? '<span class="app-via">Chrome app</span>' : "";
   const label = external ? `${app.name}. Opens in ${app.chromeId ? "its Chrome window" : "Chrome"}` : app.name;
   return `
-    <button type="button" class="app-tile" data-key="${section}-${app.id}" data-action="app" data-id="${app.id}" data-app="${app.id}"${preferred ? ' data-preferred="1"' : ""} aria-label="${esc(label)}">
+    <button type="button" class="app-tile${ui.moving === app.id ? " is-moving" : ""}" data-key="${section}-${app.id}" data-action="${action}" data-id="${app.id}" data-app="${app.id}"${preferred ? ' data-preferred="1"' : ""} aria-label="${esc(ui.moving === app.id ? `${label}. Moving: left and right move it, OK drops it` : label)}">
       <span class="app-art${external ? " app-art--brand" : ""}" style="--a:${app.colors[0]};--b:${app.colors[1]}">${face}${via}<span class="sheen"></span></span>
       <span class="tile-cap">${esc(app.name)}</span>
     </button>`;
@@ -663,6 +753,15 @@ function mediaRow(row) {
 
 function homeRows() {
   const rows = [];
+  if (state.prefs.homeStyle === "minimal") {
+    rows.push({ id: "apps", title: "Your apps", apps: true });
+    const contMin = continueItems();
+    if (contMin.length) rows.push({ id: "cont", title: "Continue watching", items: contMin, variant: "wide" });
+    const pcMin = localContinue();
+    if (pcMin.length) rows.push({ id: "pccont", title: "Continue on this PC", files: rememberSet("r-pccont", pcMin) });
+    if (state.myList.length) rows.push({ id: "mine", title: "My List", mixed: state.myList });
+    return rows;
+  }
   const cont = continueItems();
   if (cont.length) rows.push({ id: "cont", title: "Continue watching", items: cont, variant: "wide" });
   rows.push({ id: "apps", title: "Your apps", apps: true });
@@ -683,8 +782,7 @@ function homeRows() {
   }
   rows.push({ id: "movies", title: "Movies", items: byKind("movie"), variant: "wide" });
   rows.push({ id: "series", title: "Series", items: byKind("show"), variant: "tall" });
-  const mine = catalog.filter((item) => state.list.has(item.id));
-  if (mine.length) rows.push({ id: "mine", title: "From My List", items: mine, variant: "wide" });
+  if (state.myList.length) rows.push({ id: "mine", title: "From My List", mixed: state.myList });
   return rows;
 }
 
@@ -717,10 +815,16 @@ function heroInner(dir = 0) {
 
 function renderHome() {
   const rows = homeRows().map((row) => {
-    if (row.apps) return rowHtml(row.id, row.title, homeApps().map((app) => appTile(app, `r-${row.id}`)).join(""), "apps");
+    if (row.apps) return rowHtml(row.id, row.title, homeApps().map((app) => appTile(app, `r-${row.id}`)).join("") + addAppTile(`r-${row.id}`), "apps");
+    if (row.mixed) return rowHtml(row.id, row.title, listTiles(row.mixed, `r-${row.id}`), "wide");
     if (row.files) return rowHtml(row.id, row.title, row.files.map((entry) => fileTile(entry, `r-${row.id}`)).join(""), "wide");
     return mediaRow(row);
   }).join("");
+  if (state.prefs.homeStyle === "minimal") {
+    return `
+      <section class="hero hero--minimal" data-zone="hero">${minimalHero()}</section>
+      <div class="rows rows--minimal">${rows}</div>`;
+  }
   return `
     <section class="hero" data-zone="hero" data-top>${heroInner()}</section>
     <div class="rows">${rows}</div>`;
@@ -731,49 +835,94 @@ function pageHead(title, lede, extra = "") {
 }
 
 function homeApps() {
-  return [...streamingApps(), ...chromeOnlyApps(), apps[0], ...apps.slice(1).filter((a) => a.mode !== "list")];
+  return visibleApps().filter((app) => app.mode !== "list");
+}
+
+function addAppTile(section) {
+  return `
+    <button type="button" class="app-tile app-tile--add" data-key="${section}-add" data-action="add-app" aria-label="Add an app">
+      <span class="app-art app-art--add">${icon("plus")}</span>
+      <span class="tile-cap">Add app</span>
+    </button>`;
 }
 
 function renderApps() {
-  const chrome = chromeOnlyApps();
+  const shown = visibleApps();
+  const hidden = allApps().filter((app) => isHidden(app.id));
   const chromeNote = server.ok
-    ? "Shortcuts you made in Chrome (⋮ → Cast, save, and share → Create shortcut, or Install) show up here."
-    : "Start the companion (py server.py) and the shortcuts you made in Chrome show up here.";
+    ? "Shortcuts you make in Chrome (⋮ → Cast, save, and share → Create shortcut, or Install) show up here by themselves."
+    : "Start the companion (py server.py) and the shortcuts you made in Chrome show up here, and you can add PC programs.";
   return `
     <div class="page">
-      ${pageHead("Apps", "Streaming opens in Chrome. Everything else runs on this TV.")}
-      <h2 class="block-title">Streaming</h2>
-      <div class="grid grid--apps" data-zone="grid-stream">${streamingApps().map((app, i) => appTile(app, "stream", i === 0)).join("")}</div>
-      <h2 class="block-title block-title--gap">From Chrome <span class="count">${chrome.length}</span></h2>
-      ${chrome.length
-        ? `<div class="grid grid--apps" data-zone="grid-chrome">${chrome.map((app) => appTile(app, "chrome")).join("")}</div>`
-        : ""}
+      ${pageHead("Apps", "Hold OK, or press M, on an app to move, rename, or remove it.")}
+      <div class="grid grid--apps" data-zone="grid-apps">${shown.map((app, i) => appTile(app, "grid", i === 0)).join("")}${addAppTile("grid")}</div>
+      ${hidden.length ? `
+        <h2 class="block-title block-title--gap">Hidden apps <span class="count">${hidden.length}</span></h2>
+        <p class="lede lede--note lede--tight">Select one to put it back on Home.</p>
+        <div class="grid grid--apps grid--hidden" data-zone="grid-hidden">${hidden.map((app) => appTile(app, "hidden", false, "unhide")).join("")}</div>` : ""}
       <p class="lede lede--note">${esc(chromeNote)}</p>
-      <h2 class="block-title block-title--gap">On this TV</h2>
-      <div class="grid grid--apps" data-zone="grid-tv">${apps.map((app) => appTile(app, "tv")).join("")}</div>
     </div>`;
 }
 
+function fileEntryOf(e) {
+  return { name: e.name, path: e.path, type: e.ftype, size: e.size || 0 };
+}
+
+function linkTile(e, section) {
+  const art = artOf(["#121722", `hsl(${hash(e.url) % 360} 55% 50%)`], e.url);
+  const host = hostOf(e.url);
+  return `
+    <button type="button" class="tile tile--wide tile--file" data-key="${section}-${e.id}" data-action="open-link" data-lid="${e.id}" aria-label="${esc(`${e.name}. Link to ${host}`)}">
+      <span class="tile-art ${art.cls}" style="${art.style}">
+        <span class="kind-mark">${icon("link")}</span>
+        <span class="badge">${esc(host)}</span>
+        <span class="tile-title">${esc(e.name)}</span>
+        <span class="sheen"></span>
+      </span>
+      <span class="tile-cap">${esc(host)}</span>
+    </button>`;
+}
+
+// One tile for any My List entry: a title, a link, or a file from this PC.
+function listTiles(entries, section) {
+  rememberSet(section, entries.filter((e) => e.kind === "file").map(fileEntryOf));
+  return entries.map((e, i) => {
+    if (e.kind === "title") {
+      const item = itemById(e.id);
+      return item ? tile(item, section, { preferred: i === 0 }) : "";
+    }
+    if (e.kind === "file") return fileTile(fileEntryOf(e), section, { preferred: i === 0 });
+    return linkTile(e, section);
+  }).join("");
+}
+
 function renderList() {
-  const items = catalog.filter((item) => state.list.has(item.id));
-  if (!items.length) {
+  const entries = state.myList;
+  if (!entries.length) {
     return `
       <div class="page page--empty">
         <div class="empty">
           <span class="empty-mark">${icon("bookmark")}</span>
           <h1>Nothing saved yet</h1>
-          <p class="lede">Choose <strong>My List</strong> on any title, or hold OK on a tile, and it lands here.</p>
+          <p class="lede">Save titles with <strong>My List</strong>, add a web link here, or hold OK on a video, song, or photo in My PC.</p>
           <div class="actions">
-            <button type="button" class="btn btn--primary" data-key="list-home" data-action="nav" data-id="home" data-preferred="1">${icon("home")}<span>Browse Home</span></button>
-            <button type="button" class="btn" data-key="list-search" data-action="nav" data-id="search">${icon("search")}<span>Search</span></button>
+            <button type="button" class="btn btn--primary" data-key="list-add" data-action="list-add" data-preferred="1">${icon("link")}<span>Add a link</span></button>
+            <button type="button" class="btn" data-key="list-home" data-action="nav" data-id="home">${icon("home")}<span>Browse Home</span></button>
+            <button type="button" class="btn" data-key="list-pc" data-action="nav" data-id="files">${icon("pc")}<span>My PC</span></button>
           </div>
         </div>
       </div>`;
   }
   return `
     <div class="page">
-      ${pageHead("My List", `${items.length} saved · hold OK on a title to remove it`)}
-      <div class="grid" data-zone="grid">${items.map((item, i) => tile(item, "list", { preferred: i === 0 })).join("")}</div>
+      ${pageHead("My List", `${entries.length} saved · hold OK, or press M, to move, rename, or remove`)}
+      <div class="grid" data-zone="grid">${listTiles(entries, "list")}</div>
+      <div class="grid grid--folders grid--gap" data-zone="list-tools">
+        <button type="button" class="folder-tile folder-tile--add" data-key="list-add" data-action="list-add">
+          <span class="folder-ic">${icon("plus")}</span>
+          <span class="folder-text"><span class="folder-name">Add a link</span><span class="folder-cap">Any web page: a video, a playlist, a channel</span></span>
+        </button>
+      </div>
     </div>`;
 }
 
@@ -872,6 +1021,22 @@ function settingsPane() {
         + toggleRow("reduceMotion", "Reduce motion", "Turns off zoom, parallax, and slide transitions. Your system setting applies too.")
         + toggleRow("largeText", "Larger text", "Raises type and tiles by about 12 percent.")
         + toggleRow("ambient", "Ambient mode", "After two minutes idle, shows slow artwork and the time.");
+    case "home": {
+      const style = state.prefs.homeStyle;
+      const choice = (id, title, desc) => `
+        <button type="button" class="switch-row choice" role="radio" aria-checked="${style === id}" data-key="style-${id}" data-action="home-style" data-id="${id}">
+          <span class="sr-text"><span class="sr-label">${esc(title)}</span><span class="sr-desc">${esc(desc)}</span></span>
+          <span class="radio" aria-hidden="true"></span>
+        </button>`;
+      return paneHead("Home screen", "Pick how much Home shows. Change it any time.")
+        + choice("minimal", "Minimal", "The time, the weather, your apps, and what you were watching.")
+        + choice("busy", "Busy", "Featured titles, Top 10, live channels, this PC's media, and more.")
+        + `<button type="button" class="path" data-key="edit-apps" data-action="nav" data-id="apps"><span class="path-title">Add, move, or remove apps</span><span class="path-body">Opens Apps. Hold OK on any app for options, or choose Add app.</span></button>`
+        + `<button type="button" class="path" data-key="setup-again" data-action="setup-again"><span class="path-title">Run setup again</span><span class="path-body">Home style, apps, weather, and wallpaper, one step at a time.</span></button>`;
+    }
+    case "weather":
+      return paneHead("Weather & time", `The clock follows this computer: ${timeZoneName()} · ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`)
+        + weatherChoices();
     case "wallpaper": {
       const wp = state.prefs.wallpaper;
       const choice = (id, title, desc, extra = "") => `
@@ -999,27 +1164,47 @@ function renderDetail() {
     </article>`;
 }
 
-function renderWeather(app) {
-  const days = [["Mon", "sun", 23, 14], ["Tue", "cloud", 20, 13], ["Wed", "sun", 24, 15], ["Thu", "cloud", 19, 12], ["Fri", "sun", 22, 13]];
+function renderWeather() {
+  const w = state.prefs.weather;
+  const back = `<button type="button" class="btn btn--primary" data-key="panel-back" data-action="back" data-preferred="1">${icon("chevL")}<span>Back</span></button>`;
+  const change = `<button type="button" class="btn" data-key="panel-loc" data-action="wx-settings">${icon("sliders")}<span>Location & units</span></button>`;
+  const now = weatherNow();
+  if (!now) {
+    const msg = w.mode === "off" ? "Weather is off." : ui.weatherError || "Getting the weather for this computer's location…";
+    return `
+      <section class="page weather">
+        <p class="kicker">Weather</p>
+        <div class="wx-now"><span class="wx-temp">--°</span><div><p class="wx-cond">${icon("cloud")}${esc(msg)}</p></div></div>
+        <div class="actions">${back}${change}</div>
+      </section>`;
+  }
+  const c = ui.weather.current;
+  const d = ui.weather.daily;
+  const units = ui.weather.unit === "f" ? "mph" : "km/h";
+  const days = d.time.map((t, i) => {
+    const [label, ic] = wmo(d.weather_code[i], 1);
+    const name = i === 0 ? "Today" : new Date(`${t}T12:00`).toLocaleDateString([], { weekday: "short" });
+    return `<div class="wx-day glass" title="${esc(label)}"><span class="wx-name">${esc(name)}</span>${icon(ic)}<span class="wx-hi">${Math.round(d.temperature_2m_max[i])}°</span><span class="wx-lo">${Math.round(d.temperature_2m_min[i])}°</span></div>`;
+  }).join("");
   return `
     <section class="page weather">
-      <p class="kicker">Weather · sample data</p>
+      <p class="kicker">Weather · ${esc(now.place)}</p>
       <div class="wx-now">
-        <span class="wx-temp">21°</span>
-        <div><p class="wx-cond">${icon("sun")}Clear</p><p class="lede">${esc(app.blurb)}</p></div>
+        <span class="wx-temp">${now.temp}°</span>
+        <div>
+          <p class="wx-cond">${icon(now.ic)}${esc(now.label)}</p>
+          <p class="lede">Feels like ${Math.round(c.apparent_temperature)}° · Humidity ${Math.round(c.relative_humidity_2m)}% · Wind ${Math.round(c.wind_speed_10m)} ${units}</p>
+          <p class="lede lede--note lede--tight">Updated ${new Date(ui.weather.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · Open-Meteo</p>
+        </div>
       </div>
-      <div class="wx-days">
-        ${days.map(([day, ic, hi, lo]) => `<div class="wx-day glass"><span class="wx-name">${day}</span>${icon(ic)}<span class="wx-hi">${hi}°</span><span class="wx-lo">${lo}°</span></div>`).join("")}
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn--primary" data-key="panel-back" data-action="back" data-preferred="1">${icon("chevL")}<span>Back</span></button>
-      </div>
+      <div class="wx-days">${days}</div>
+      <div class="actions">${back}${change}</div>
     </section>`;
 }
 
 function renderApp() {
   const app = appById(state.appId) || apps[0];
-  if (app.mode === "panel") return renderWeather(app);
+  if (app.mode === "panel") return renderWeather();
   const items = app.mode === "all" ? catalog : byKind(app.kind);
   const badge = `<span class="app-badge" style="--a:${app.colors[0]};--b:${app.colors[1]}">${icon(app.icon)}</span>`;
   return `
@@ -1262,6 +1447,8 @@ function renderBody() {
   const screens = {
     files: renderFiles,
     media: renderMedia,
+    programs: renderPrograms,
+    setup: renderSetup,
     home: renderHome,
     apps: renderApps,
     list: renderList,
@@ -1280,13 +1467,15 @@ function screenTitle() {
   if (state.screen === "app") return (appById(state.appId) || {}).name || "App";
   if (state.screen === "media" && currentEntry()) return currentEntry().name;
   if (state.screen === "files" && state.path) return baseName(state.path);
+  if (state.screen === "setup") return "Setup";
+  if (state.screen === "programs") return "Add a program";
   const names = { home: "Home", apps: "Apps", list: "My List", search: "Search", settings: "Settings", files: "My PC" };
   return names[state.screen] || "Home";
 }
 
 function render(animate = true) {
   const root = document.getElementById("app");
-  const fullscreenScreen = state.screen === "player" || state.screen === "media";
+  const fullscreenScreen = state.screen === "player" || state.screen === "media" || state.screen === "setup";
   const chrome = !fullscreenScreen && state.stack.length === 0;
   const prev = currentEl();
   if (prev) {
@@ -1295,7 +1484,9 @@ function render(animate = true) {
   }
   document.body.dataset.screen = state.screen;
   document.body.classList.toggle("no-chrome", !chrome);
-  document.body.classList.remove("in-rows", "scrolled");
+  document.body.classList.remove("in-rows", "scrolled", "bar-hidden");
+  document.body.classList.toggle("home-minimal", state.screen === "home" && state.prefs.homeStyle === "minimal");
+  ui.lastScrollTop = 0;
   const backPill = !chrome && !fullscreenScreen
     ? `<button type="button" class="back-pill glass" data-action="back" tabindex="-1" aria-label="Back">${icon("chevL")}<span>Back</span></button>`
     : "";
@@ -1307,6 +1498,7 @@ function render(animate = true) {
   tickClock();
   if (state.screen === "player") updatePlayerUi();
   if (state.screen === "media") wireMedia();
+  paintWeather();
 }
 
 /* ---------- Backdrop and focus info ---------- */
@@ -1368,7 +1560,7 @@ function setFocusInfo(item, app) {
 
 function focusContext(el) {
   if (state.overlay) return;
-  const inRows = state.screen === "home" && !!el.closest(".rows");
+  const inRows = state.screen === "home" && state.prefs.homeStyle !== "minimal" && !!el.closest(".rows");
   document.body.classList.toggle("in-rows", inRows);
   const item = el.dataset.item ? itemById(el.dataset.item) : null;
   const app = el.dataset.app ? appById(el.dataset.app) : null;
@@ -1390,7 +1582,7 @@ function focusables() {
   if (!root) return [];
   // The top bar is fixed while content scrolls, so while it is tucked away in the rows
   // its geometry would beat the (scrolled-off) hero. Leave it out until the hero has focus.
-  const skipTopbar = document.body.classList.contains("in-rows");
+  const skipTopbar = document.body.classList.contains("bar-hidden");
   return [...root.querySelectorAll("[data-key]")].filter((el) => (
     !el.disabled
     && !el.closest("[hidden]")
@@ -1540,17 +1732,25 @@ function move(dir) {
   sound("move");
 }
 
-function revealTopbar() {
-  const screen = document.getElementById("screen");
-  if (!screen || state.screen !== "home" || !document.body.classList.contains("in-rows")) return;
-  const hero = screen.querySelector(".hero");
-  if (!hero) return;
-  const top = hero.getBoundingClientRect().top - screen.getBoundingClientRect().top;
-  if (top <= -screen.clientHeight * 0.18) return;
-  document.body.classList.remove("in-rows");
-  const heroBtn = hero.querySelector("[data-key]");
-  const inRows = document.activeElement && document.activeElement.closest && document.activeElement.closest(".rows");
-  if (heroBtn && inRows) focusEl(heroBtn, { noScroll: true });
+// The top bar hides while you scroll down and comes back when you scroll up or reach the top.
+// Remote navigation scrolls the page too; it can hide the bar, but only a person scrolling up
+// (mouse wheel, touch) or reaching the top brings it back, so it doesn't flicker over the rows.
+function onScreenScroll(screen) {
+  const top = screen.scrollTop;
+  const dy = top - ui.lastScrollTop;
+  ui.lastScrollTop = top;
+  document.body.classList.toggle("scrolled", top > 24);
+  const byPerson = Date.now() - ui.pointerScrollAt < 500;
+  let hidden = document.body.classList.contains("bar-hidden");
+  if (top < 60) hidden = false;
+  else if (dy > 2) hidden = true;
+  else if (dy < -2 && byPerson) hidden = false;
+  document.body.classList.toggle("bar-hidden", hidden);
+  if (top < 60 && byPerson && state.screen === "home" && document.body.classList.contains("in-rows")) {
+    document.body.classList.remove("in-rows");
+    const heroBtn = findKey("hero-play");
+    if (heroBtn) focusEl(heroBtn, { noScroll: true });
+  }
 }
 
 function scrollFor(el) {
@@ -1570,7 +1770,7 @@ function scrollFor(el) {
   }
   const sr = screen.getBoundingClientRect();
   const row = el.closest(".row");
-  if (row && state.screen === "home") {
+  if (row && state.screen === "home" && state.prefs.homeStyle !== "minimal") {
     const top = row.getBoundingClientRect().top - sr.top + screen.scrollTop;
     screen.scrollTo({ top: Math.max(0, top - screen.clientHeight * 0.42), behavior });
     return;
@@ -1594,6 +1794,7 @@ function onFocusIn(event) {
   focusContext(el);
   if (el.dataset.action === "nav" && el.closest(".topbar") && ui.inputMode === "key" && !ui.restoring) scheduleTab(el);
   if (el.dataset.action === "settings-tab") schedulePane(el.dataset.id);
+  if (el.closest(".topbar")) document.body.classList.remove("bar-hidden");
 }
 
 function scheduleTab(el) {
@@ -1697,7 +1898,7 @@ function openPlayer(id, opts = {}) {
 function openApp(id) {
   const app = appById(id);
   if (!app) return;
-  if (app.mode === "web" || app.mode === "chrome") {
+  if (app.mode === "web" || app.mode === "chrome" || app.mode === "program") {
     launchApp(app);
     return;
   }
@@ -1762,6 +1963,10 @@ function back() {
     closeOverlay();
     return;
   }
+  if (state.screen === "setup") {
+    setupGo(-1);
+    return;
+  }
   sound("back");
   if (state.stack.length && history.state && history.state.tv === state.stack.length) {
     history.back();
@@ -1779,6 +1984,10 @@ function onPopState() {
 
 function activate(el) {
   if (!el) return;
+  if (ui.moving) {
+    endMove();
+    return;
+  }
   const action = el.dataset.action;
   const id = el.dataset.id || "";
   if (action !== "back") sound("select");
@@ -1827,6 +2036,29 @@ function activate(el) {
       focusEl(focusables().find((e) => e.closest("#search-results") && e.dataset.item));
       break;
     case "open-dir": openDir(el.dataset.path); break;
+    case "add-app": openAddApp(); break;
+    case "unhide": unhideApp(id); break;
+    case "pick-program": addProgram(id, el.dataset.name || "Program"); break;
+    case "list-add": addListLink(); break;
+    case "open-link": openLink(el.dataset.lid); break;
+    case "home-style": setHomeStyle(id); break;
+    case "setup-again": state.setupStep = 0; openNav("setup"); break;
+    case "setup-next": setupGo(1); break;
+    case "setup-back": setupGo(-1); break;
+    case "setup-skip":
+    case "setup-finish": finishSetup(); break;
+    case "setup-style": state.prefs.homeStyle = id; save(); setupGo(1); break;
+    case "setup-app": toggleHidden(id); render(false); break;
+    case "wx-mode": setWeatherMode(id); break;
+    case "wx-unit": toggleUnit(); break;
+    case "wx-refresh": refreshWeather(true); toast("Updating the weather", "refresh"); break;
+    case "wx-settings": state.settingsTab = "weather"; openNav("settings"); break;
+    case "te-key": teType(id); break;
+    case "te-del": teDelete(); break;
+    case "te-clear": ui.te.value = ""; paintTe(); break;
+    case "te-caps": ui.te.caps = !ui.te.caps; renderOverlay(); focusEl(findKey("te-caps")); break;
+    case "te-done": teDone(); break;
+    case "te-cancel": closeOverlay(); break;
     case "open-file": openFileFrom(el); break;
     case "media-toggle": mediaToggle(); break;
     case "media-seek": mediaSeek(Number(el.dataset.delta)); break;
@@ -1854,8 +2086,9 @@ function toggleList(id) {
   const item = itemById(id);
   if (!item) return;
   const added = !state.list.has(id);
-  if (added) state.list.add(id);
-  else state.list.delete(id);
+  if (added) state.myList.push({ kind: "title", id });
+  else state.myList = state.myList.filter((e) => !(e.kind === "title" && e.id === id));
+  syncList();
   save();
   toast(added ? `Added ${item.title} to My List` : `Removed ${item.title} from My List`, added ? "check" : "close");
   render(false);
@@ -1905,7 +2138,8 @@ function confirmReset() {
 function resetDemo() {
   state.progress = { ...SAMPLE_PROGRESS };
   state.watchedAt = {};
-  state.list = new Set();
+  state.myList = [];
+  syncList();
   save();
   toast("Demo data reset", "check");
   state.focusKey = "reset-demo";
@@ -1933,6 +2167,7 @@ function cycleHero(delta) {
 }
 
 function tickHero() {
+  if (state.prefs.homeStyle === "minimal") return;
   if (state.screen !== "home" || state.stack.length || state.overlay || document.hidden || ambientVisible()) return;
   if (document.body.classList.contains("in-rows")) return;
   const now = Date.now();
@@ -2231,6 +2466,10 @@ function renderOverlay() {
   const o = state.overlay;
   box.hidden = false;
   box.dataset.layout = o.layout;
+  if (o.layout === "keyboard") {
+    box.innerHTML = teHtml(o);
+    return;
+  }
   if (o.layout === "source") {
     box.innerHTML = `
       <div class="sheet-scrim" data-action="sheet-close"></div>
@@ -2262,8 +2501,19 @@ function renderOverlay() {
 }
 
 function closeOverlay(restore = true) {
+  const wasKeyboard = state.overlay && state.overlay.layout === "keyboard";
   state.overlay = null;
   renderOverlay();
+  if (wasKeyboard) {
+    ui.te = null;
+    if (restore) {
+      state.focusKey = ui.teReturn;
+      const back = findKey(ui.teReturn);
+      if (back) focusEl(back, { noScroll: true });
+      else restoreFocus();
+    }
+    return;
+  }
   if (restore) {
     state.focusKey = ui.sheetReturn;
     const el = findKey(ui.sheetReturn);
@@ -2280,8 +2530,10 @@ function runSheet(index) {
 }
 
 function openMenuFor(el) {
-  if (!el || state.screen === "player") return false;
+  if (!el || state.screen === "player" || ui.moving) return false;
   if (el.dataset.ftype) return openFileMenu(el);
+  if (el.dataset.lid) return openLinkMenu(el.dataset.lid);
+  if (el.dataset.app && el.dataset.action === "app") return openAppMenu(el.dataset.app);
   const id = el.dataset.item;
   const item = id && itemById(id);
   if (!item) return false;
@@ -2294,6 +2546,7 @@ function openMenuFor(el) {
   if (state.screen !== "detail" || state.mediaId !== id) actions.push({ label: "Details", icon: "info", run: () => openDetail(id) });
   actions.push({ label: inList ? "Remove from My List" : "Add to My List", icon: inList ? "close" : "plus", run: () => toggleList(id) });
   if (resumable) actions.push({ label: "Remove from Continue watching", icon: "close", run: () => removeFromContinue(id) });
+  if (state.screen === "list" && inList) actions.push(...listMoveActions((e) => e.kind === "title" && e.id === id));
   openSheet({ kicker: `${kindLabel(item.kind)} · ${item.genre}`, title: item.title, actions });
   return true;
 }
@@ -2366,6 +2619,11 @@ function openFileMenu(el) {
       });
     }
   }
+  const inList = state.myList.some((e) => e.kind === "file" && e.path === entry.path);
+  actions.push(inList
+    ? { label: "Remove from My List", icon: "close", run: () => removeListEntry((e) => e.kind === "file" && e.path === entry.path, stripExt(entry.name)) }
+    : { label: "Add to My List", icon: "plus", run: () => addFileToList(entry) });
+  if (state.screen === "list" && inList) actions.push(...listMoveActions((e) => e.kind === "file" && e.path === entry.path));
   const folder = parentDir(entry.path);
   if (state.screen !== "files" || state.path !== folder) {
     actions.push({ label: `Open folder · ${folderOf(entry.path) || folder}`, icon: "folder", run: () => openDir(folder) });
@@ -2653,6 +2911,7 @@ async function applyWallpaper() {
     wall.style.backgroundImage = `url("${url}")`;
     document.body.classList.add("has-wall");
     if (state.screen === "settings" && state.settingsTab === "wallpaper") refreshPane();
+    else if (state.screen === "setup" && !state.overlay) render(false);
   };
   img.onerror = clear;
   img.src = url;
@@ -2665,6 +2924,7 @@ function setWallpaper(value) {
   const names = { desktop: "Desktop wallpaper on", custom: "Your picture is the wallpaper", art: "Wallpaper off · artwork follows focus" };
   toast(names[value] || "Photo set as wallpaper", "image");
   if (state.screen === "settings") refreshPane();
+  else if (state.screen === "setup") render(false);
 }
 
 function chooseWallpaper(id) {
@@ -2824,10 +3084,11 @@ function launchApp(app) {
   setTimeout(async () => {
     try {
       if (server.canLaunch) {
-        if (app.chromeId) await api("/api/launch", { id: app.chromeId });
+        if (app.mode === "program") await api("/api/launch-program", { id: app.programId });
+        else if (app.chromeId) await api("/api/launch", { id: app.chromeId });
         else await api("/api/open-url", { url: app.url });
         ui.away = true;
-        setSignalText(`${app.name} is open`, app.chromeId ? "Close its window to come back here" : "Alt+F4 closes it and brings you back");
+        setSignalText(`${app.name} is open`, app.chromeId || app.mode === "program" ? "Close its window to come back here" : "Alt+F4 closes it and brings you back");
         hideSignal(2600);
       } else {
         const win = window.open(app.url, "_blank");
@@ -2943,7 +3204,917 @@ async function connectCompanion() {
   }
   await Promise.allSettled([refreshApps(false), loadLibrary(), refreshVolume(false)]);
   applyWallpaper();
-  if (["home", "apps", "settings", "files"].includes(state.screen)) render(false);
+  if (["home", "apps", "settings", "files", "setup", "programs"].includes(state.screen)) render(false);
+}
+
+/* ---------- Time (from this computer) ---------- */
+
+function timeText(now = new Date()) {
+  return now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function dateText(now = new Date()) {
+  return now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+}
+
+function greeting(now = new Date()) {
+  const h = now.getHours();
+  if (h < 5) return "Good night";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function timeZoneName() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "local time";
+  } catch {
+    return "local time";
+  }
+}
+
+function minimalHero() {
+  const now = new Date();
+  return `
+    <div class="mh">
+      <p class="kicker" id="mh-greet">${esc(greeting(now))}</p>
+      <p class="mh-clock" id="mh-clock">${esc(timeText(now))}</p>
+      <p class="mh-date" id="mh-date">${esc(dateText(now))}</p>
+      <div class="mh-wx" id="mh-wx">${weatherBlock()}</div>
+    </div>`;
+}
+
+function setHomeStyle(style) {
+  state.prefs.homeStyle = style === "minimal" ? "minimal" : "busy";
+  save();
+  toast(style === "minimal" ? "Minimal Home: time, weather, apps, and what you were watching" : "Busy Home: everything on one screen", "home");
+  refreshPane();
+}
+
+/* ---------- Weather (this computer's location, from Open-Meteo) ---------- */
+
+const WEATHER_KEY = "smarttv.weather";
+
+function tempUnit() {
+  const unit = state.prefs.weather.unit;
+  if (unit === "c" || unit === "f") return unit;
+  return /^en-(US|LR)|^my\b/i.test(navigator.language || "") ? "f" : "c";
+}
+
+function wmo(code, isDay = 1) {
+  if (code === 0) return ["Clear", isDay ? "sun" : "moon"];
+  if (code === 1) return ["Mostly clear", isDay ? "cloudSun" : "moon"];
+  if (code === 2) return ["Partly cloudy", isDay ? "cloudSun" : "cloud"];
+  if (code === 3) return ["Cloudy", "cloud"];
+  if (code === 45 || code === 48) return ["Fog", "fog"];
+  if (code >= 51 && code <= 57) return ["Drizzle", "rain"];
+  if (code >= 61 && code <= 67) return ["Rain", "rain"];
+  if (code >= 71 && code <= 77) return ["Snow", "snow"];
+  if (code >= 80 && code <= 82) return ["Showers", "rain"];
+  if (code >= 85 && code <= 86) return ["Snow showers", "snow"];
+  if (code >= 95) return ["Thunderstorms", "storm"];
+  return ["Weather", "cloud"];
+}
+
+function loadWeatherCache() {
+  try {
+    ui.weather = JSON.parse(localStorage.getItem(WEATHER_KEY) || "null");
+  } catch {
+    ui.weather = null;
+  }
+}
+
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("No location service"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      reject,
+      { timeout: 10000, maximumAge: 3600000 }
+    );
+  });
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`The weather service answered ${res.status}`);
+  return res.json();
+}
+
+// Windows location services first (through the browser), then the network's location.
+async function locateComputer() {
+  try {
+    const pos = await getPosition();
+    let place = "";
+    try {
+      const g = await fetchJson(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.lat}&longitude=${pos.lon}&localityLanguage=en`);
+      place = g.city || g.locality || g.principalSubdivision || "";
+    } catch {
+      /* the name is optional */
+    }
+    return { ...pos, place: place || "Your location" };
+  } catch {
+    const ip = await fetchJson("https://ipapi.co/json/");
+    if (!ip || ip.latitude == null) throw new Error("Couldn't find this computer's location");
+    return { lat: ip.latitude, lon: ip.longitude, place: ip.city || ip.region || "Your area" };
+  }
+}
+
+async function refreshWeather(force = false) {
+  const w = state.prefs.weather;
+  if (w.mode === "off") {
+    updateWeatherUi();
+    return;
+  }
+  if (ui.weatherBusy) return;
+  const unit = tempUnit();
+  const fresh = ui.weather && ui.weather.unit === unit && ui.weather.lat === w.lat && ui.weather.lon === w.lon
+    && Date.now() - ui.weather.at < 20 * 60 * 1000;
+  if (fresh && !force) {
+    updateWeatherUi();
+    return;
+  }
+  ui.weatherBusy = true;
+  try {
+    if (w.mode === "auto" && (w.lat == null || force || Date.now() - (w.locatedAt || 0) > 6 * 3600 * 1000)) {
+      const loc = await locateComputer();
+      Object.assign(w, { lat: loc.lat, lon: loc.lon, place: loc.place, locatedAt: Date.now() });
+      save();
+    }
+    if (w.lat == null) throw new Error("Choose a city for the weather");
+    const f = unit === "f";
+    const d = await fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${Number(w.lat).toFixed(3)}&longitude=${Number(w.lon).toFixed(3)}`
+      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=6"
+      + `&temperature_unit=${f ? "fahrenheit" : "celsius"}&wind_speed_unit=${f ? "mph" : "kmh"}`);
+    ui.weather = { at: Date.now(), lat: w.lat, lon: w.lon, unit, place: w.place, current: d.current, daily: d.daily };
+    ui.weatherError = "";
+    try {
+      localStorage.setItem(WEATHER_KEY, JSON.stringify(ui.weather));
+    } catch {
+      /* cache is optional */
+    }
+  } catch (err) {
+    ui.weatherError = (err && err.message) || "The weather isn't available right now";
+  } finally {
+    ui.weatherBusy = false;
+    updateWeatherUi();
+  }
+}
+
+function weatherNow() {
+  const wx = ui.weather;
+  if (!wx || !wx.current || state.prefs.weather.mode === "off") return null;
+  const [label, ic] = wmo(wx.current.weather_code, wx.current.is_day);
+  return { temp: Math.round(wx.current.temperature_2m), label, ic, place: wx.place || state.prefs.weather.place };
+}
+
+function weatherBlock() {
+  const now = weatherNow();
+  if (!now) {
+    if (state.prefs.weather.mode === "off") return "";
+    return `<span class="mh-note">${esc(ui.weatherError || "Getting the weather…")}</span>`;
+  }
+  const d = ui.weather.daily;
+  return `${icon(now.ic)}<span class="mh-temp">${now.temp}°</span>
+    <span class="mh-cond">${esc(now.label)} · H ${Math.round(d.temperature_2m_max[0])}° L ${Math.round(d.temperature_2m_min[0])}°<span class="mh-place">${esc(now.place)}</span></span>`;
+}
+
+// Cheap repaint of the weather bits that live inside other screens (called by render()).
+function paintWeather() {
+  const now = weatherNow();
+  const chip = document.getElementById("wx-chip");
+  if (chip) {
+    chip.hidden = !now;
+    chip.innerHTML = now ? `${icon(now.ic)}<span>${now.temp}°</span>` : "";
+    chip.title = now ? `${now.label} · ${now.place}` : "";
+  }
+  const mh = document.getElementById("mh-wx");
+  if (mh) mh.innerHTML = weatherBlock();
+}
+
+function updateWeatherUi() {
+  paintWeather();
+  if (state.overlay) return;
+  if (state.screen === "settings" && state.settingsTab === "weather") refreshPane();
+  else if (state.screen === "setup" && SETUP_STEPS[state.setupStep] === "weather") render(false);
+  else if (state.screen === "app" && (appById(state.appId) || {}).mode === "panel") render(false);
+}
+
+function weatherChoices() {
+  const w = state.prefs.weather;
+  const now = weatherNow();
+  const status = w.mode === "off"
+    ? "Weather is off."
+    : now ? `${now.place}: ${now.temp}° and ${now.label.toLowerCase()}.` : ui.weatherBusy ? "Finding this computer's location…" : ui.weatherError || "Not loaded yet.";
+  const choice = (id, title, desc) => `
+    <button type="button" class="switch-row choice" role="radio" aria-checked="${w.mode === id}" data-key="wx-${id}" data-action="wx-mode" data-id="${id}">
+      <span class="sr-text"><span class="sr-label">${esc(title)}</span><span class="sr-desc">${esc(desc)}</span></span>
+      <span class="radio" aria-hidden="true"></span>
+    </button>`;
+  return `<p class="wx-status">${now ? icon(now.ic) : icon("cloud")}<span>${esc(status)}</span></p>`
+    + choice("auto", "Use this computer's location", "Windows location services. If those are off, the location of your network.")
+    + choice("city", w.mode === "city" && w.place ? `City: ${w.place}` : "Choose a city…", "Search for a city by name.")
+    + choice("off", "No weather", "Hide the weather everywhere.")
+    + `<button type="button" class="switch-row" data-key="wx-unit" data-action="wx-unit">
+        <span class="sr-text"><span class="sr-label">Temperature</span><span class="sr-desc">Select to switch between Celsius and Fahrenheit.</span></span>
+        <span class="unit-pill">${tempUnit() === "f" ? "°F" : "°C"}</span>
+      </button>`
+    + (w.mode !== "off" ? `<button type="button" class="path" data-key="wx-refresh" data-action="wx-refresh"><span class="path-title">Update now</span><span class="path-body">Weather updates by itself every 20 minutes. Data from Open-Meteo.</span></button>` : "");
+}
+
+function setWeatherMode(mode) {
+  const w = state.prefs.weather;
+  if (mode === "city") {
+    chooseCity();
+    return;
+  }
+  w.mode = mode === "off" ? "off" : "auto";
+  if (w.mode === "auto") {
+    w.lat = null;
+    w.lon = null;
+  }
+  save();
+  if (w.mode === "off") paintWeather();
+  updateWeatherUi();
+  if (w.mode === "auto") refreshWeather(true);
+}
+
+function chooseCity() {
+  openTextEntry({
+    kicker: "Weather",
+    title: "Which city?",
+    kind: "text",
+    placeholder: "Johannesburg",
+    doneLabel: "Search",
+    validate: (v) => (v.trim().length < 2 ? "Type at least two letters" : ""),
+    onDone: async (q) => {
+      try {
+        const r = await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en`);
+        const list = r.results || [];
+        if (!list.length) {
+          toast(`No city called ${q}`, "close");
+          return;
+        }
+        openSheet({
+          kicker: "Choose a city",
+          title: q,
+          actions: list.map((c) => ({ label: [c.name, c.admin1, c.country].filter(Boolean).join(", "), icon: "sun", run: () => setCity(c) }))
+        });
+      } catch {
+        toast("Couldn't search for cities right now", "close");
+      }
+    }
+  });
+}
+
+function setCity(c) {
+  Object.assign(state.prefs.weather, { mode: "city", lat: c.latitude, lon: c.longitude, place: c.name, locatedAt: Date.now() });
+  save();
+  toast(`Weather for ${c.name}`, "sun");
+  refreshWeather(true);
+}
+
+function toggleUnit() {
+  state.prefs.weather.unit = tempUnit() === "c" ? "f" : "c";
+  save();
+  updateWeatherUi();
+  refreshWeather(true);
+}
+
+/* ---------- Apps: add, rename, move, remove ---------- */
+
+function appKindLabel(app) {
+  if (app.mode === "program") return "Program on this PC";
+  if (app.mode === "chrome") return "Chrome shortcut";
+  if (app.mode === "web") return app.chromeId ? "Chrome app" : app.custom ? `Website · ${hostOf(app.url)}` : "Streaming · opens in Chrome";
+  return "On this TV";
+}
+
+function openAppMenu(id) {
+  const app = appById(id);
+  if (!app) return false;
+  const actions = [
+    { label: `Open ${app.name}`, icon: "play", run: () => openApp(id) },
+    { label: "Move", icon: "move", run: () => startMove(id) },
+    { label: "Rename", icon: "edit", run: () => renameApp(id) }
+  ];
+  if (app.custom && app.kind === "web") actions.push({ label: "Change web address", icon: "link", run: () => editAppUrl(id) });
+  actions.push(app.custom
+    ? { label: "Remove app", icon: "close", danger: true, run: () => removeApp(id) }
+    : { label: "Hide from Home", icon: "close", danger: true, run: () => hideApp(id) });
+  openSheet({ kicker: appKindLabel(app), title: app.name, actions });
+  return true;
+}
+
+function startMove(id) {
+  ui.moving = id;
+  render(false);
+  toast("Left and right move it. OK drops it", "move");
+}
+
+function endMove() {
+  const id = ui.moving;
+  ui.moving = null;
+  render(false);
+  const app = id && appById(id);
+  if (app) toast(`${app.name} moved`, "check");
+}
+
+function moveApp(dir) {
+  const id = ui.moving;
+  const shown = (state.screen === "home" ? homeApps() : visibleApps()).map((a) => a.id);
+  const i = shown.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= shown.length) {
+    bump(currentEl(), dir < 0 ? "left" : "right");
+    return;
+  }
+  const order = allApps().map((a) => a.id);
+  const a = order.indexOf(id);
+  const b = order.indexOf(shown[j]);
+  [order[a], order[b]] = [order[b], order[a]];
+  state.prefs.appOrder = order;
+  save();
+  sound("move");
+  render(false);
+}
+
+function renameApp(id) {
+  const app = appById(id);
+  if (!app) return;
+  openTextEntry({
+    kicker: "Rename app",
+    title: "Name on the tile",
+    kind: "text",
+    value: app.name,
+    validate: (v) => (v.trim() ? "" : "Type a name"),
+    onDone: (name) => {
+      const custom = state.prefs.customApps.find((c) => c.id === id);
+      if (custom) custom.name = name;
+      else state.prefs.appNames[id] = name;
+      save();
+      toast(`Renamed to ${name}`, "check");
+      render(false);
+    }
+  });
+}
+
+function editAppUrl(id) {
+  const custom = state.prefs.customApps.find((c) => c.id === id);
+  if (!custom) return;
+  openTextEntry({
+    kicker: custom.name,
+    title: "Web address",
+    kind: "url",
+    value: custom.url,
+    validate: validUrl,
+    onDone: (raw) => {
+      custom.url = normalizeUrl(raw);
+      save();
+      toast(`${custom.name} now opens ${hostOf(custom.url)}`, "check");
+      render(false);
+    }
+  });
+}
+
+function removeApp(id) {
+  const app = appById(id);
+  if (!app) return;
+  openSheet({
+    kicker: appKindLabel(app),
+    title: `Remove ${app.name}?`,
+    body: app.kind === "program" ? "The program stays installed on this PC. Only the tile goes." : "You can add it again any time from Add app.",
+    actions: [
+      {
+        label: "Remove",
+        icon: "close",
+        danger: true,
+        run: () => {
+          state.prefs.customApps = state.prefs.customApps.filter((c) => c.id !== id);
+          state.prefs.appOrder = state.prefs.appOrder.filter((x) => x !== id);
+          save();
+          toast(`Removed ${app.name}`, "close");
+          render(false);
+        }
+      },
+      { label: "Cancel", icon: "chevL", run: () => {} }
+    ]
+  });
+}
+
+function hideApp(id) {
+  const app = appById(id);
+  if (!isHidden(id)) state.prefs.hiddenApps.push(id);
+  save();
+  toast(`${app ? app.name : "App"} hidden. Put it back from Apps → Hidden apps`, "close");
+  render(false);
+}
+
+function unhideApp(id) {
+  const app = appById(id);
+  state.prefs.hiddenApps = state.prefs.hiddenApps.filter((x) => x !== id);
+  save();
+  toast(`${app ? app.name : "App"} is back on Home`, "check");
+  render(false);
+}
+
+function toggleHidden(id) {
+  if (isHidden(id)) state.prefs.hiddenApps = state.prefs.hiddenApps.filter((x) => x !== id);
+  else state.prefs.hiddenApps.push(id);
+  save();
+}
+
+function openAddApp() {
+  openSheet({
+    kicker: "Add an app",
+    title: "What would you like to add?",
+    actions: [
+      { label: "Website or web app", icon: "globe", run: () => addWebApp() },
+      {
+        label: "Program on this PC",
+        icon: "pc",
+        run: () => (server.canLaunch ? openPrograms() : toast("Start the companion (py server.py) on this PC to add programs", "pc"))
+      },
+      { label: "Android app (APK)", icon: "android", run: explainApk }
+    ]
+  });
+}
+
+function normalizeUrl(raw) {
+  let v = String(raw || "").trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = `https://${v}`;
+  return new URL(v).href;
+}
+
+function validUrl(raw) {
+  try {
+    const u = new URL(normalizeUrl(raw));
+    if (!/^https?:$/.test(u.protocol)) return "Use a web address that starts with http or https";
+    if (!u.hostname.includes(".") && u.hostname !== "localhost") return "That doesn't look like a web address. Try netflix.com";
+    return "";
+  } catch {
+    return "That doesn't look like a web address. Try netflix.com";
+  }
+}
+
+function suggestName(url) {
+  const first = hostOf(url).split(".")[0] || "";
+  return first ? first[0].toUpperCase() + first.slice(1) : "Website";
+}
+
+function addWebApp() {
+  openTextEntry({
+    kicker: "Add a website · step 1 of 2",
+    title: "Web address",
+    kind: "url",
+    placeholder: "showmax.com",
+    doneLabel: "Next",
+    validate: validUrl,
+    onDone: (raw) => {
+      const url = normalizeUrl(raw);
+      openTextEntry({
+        kicker: "Add a website · step 2 of 2",
+        title: "Name on the tile",
+        kind: "text",
+        value: suggestName(url),
+        doneLabel: "Add app",
+        validate: (v) => (v.trim() ? "" : "Type a name"),
+        onDone: (name) => createCustomApp({ kind: "web", name, url })
+      });
+    }
+  });
+}
+
+function createCustomApp(data) {
+  const id = `custom-${Date.now().toString(36)}`;
+  const hue = hash(data.url || data.programId || data.name) % 360;
+  state.prefs.customApps.push({ id, ...data, colors: [`hsl(${hue} 35% 14%)`, `hsl(${hue} 60% 48%)`] });
+  state.prefs.hiddenApps = state.prefs.hiddenApps.filter((x) => x !== id);
+  save();
+  toast(`Added ${data.name} to your apps`, "check");
+  render(false);
+  return id;
+}
+
+function explainApk() {
+  openSheet({
+    kicker: "Android apps",
+    title: "APK files need Android",
+    body: "This TV runs in a browser on Windows, which can't install Android apps. On a Google TV or Android TV you can sideload an APK with the Downloader app. Here, add the service's website instead: Netflix, Showmax, DStv, SABC Plus, and most others have one.",
+    actions: [
+      { label: "Add a website instead", icon: "globe", run: () => addWebApp() },
+      { label: "Close", icon: "close", run: () => {} }
+    ]
+  });
+}
+
+function openPrograms() {
+  pushScreen(() => {
+    state.screen = "programs";
+    state.focusKey = null;
+  });
+}
+
+function ensurePrograms() {
+  if (ui.programs || ui.loading.programs) return;
+  ui.loading.programs = true;
+  api("/api/programs")
+    .then((d) => { ui.programs = Array.isArray(d.programs) ? d.programs : []; })
+    .catch((err) => { ui.programs = { error: err.message }; })
+    .finally(() => {
+      delete ui.loading.programs;
+      if (state.screen === "programs") render(false);
+    });
+}
+
+function renderPrograms() {
+  if (!server.ok) return companionCard("Adding programs");
+  if (!ui.programs) {
+    ensurePrograms();
+    return loadingView("Reading the Start menu…");
+  }
+  if (ui.programs.error) return `<div class="page">${pageHead("Add a program", esc(ui.programs.error))}</div>`;
+  const added = new Set(state.prefs.customApps.filter((c) => c.kind === "program").map((c) => c.programId));
+  const tiles = ui.programs.map((p, i) => `
+    <button type="button" class="folder-tile" data-key="prog-${p.id}" data-action="pick-program" data-id="${p.id}" data-name="${esc(p.name)}"${i === 0 ? ' data-preferred="1"' : ""}>
+      <span class="folder-ic"><img class="prog-ic" src="${esc(withKey(`/api/program-icon?id=${encodeURIComponent(p.id)}`))}" alt="" loading="lazy" decoding="async" /></span>
+      <span class="folder-text"><span class="folder-name">${esc(p.name)}</span><span class="folder-cap">${added.has(p.id) ? "Already on Home" : "Program"}</span></span>
+    </button>`).join("");
+  return `
+    <div class="page">
+      ${pageHead("Add a program", `${ui.programs.length} programs from the Start menu. Pick one to put it on Home.`)}
+      <div class="grid grid--folders" data-zone="programs">${tiles}</div>
+    </div>`;
+}
+
+function addProgram(programId, name) {
+  if (state.prefs.customApps.some((c) => c.kind === "program" && c.programId === programId)) {
+    toast(`${name} is already on Home`, "check");
+    return;
+  }
+  createCustomApp({ kind: "program", name, programId });
+  back();
+}
+
+/* ---------- My List: add, rename, move, remove ---------- */
+
+function listMoveActions(match) {
+  return [
+    { label: "Move earlier", icon: "chevL", run: () => moveListEntry(match, -1) },
+    { label: "Move later", icon: "chevR", run: () => moveListEntry(match, 1) }
+  ];
+}
+
+function moveListEntry(match, dir) {
+  const i = state.myList.findIndex(match);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= state.myList.length) {
+    toast(dir < 0 ? "It's already first" : "It's already last", "move");
+    return;
+  }
+  [state.myList[i], state.myList[j]] = [state.myList[j], state.myList[i]];
+  save();
+  render(false);
+}
+
+function removeListEntry(match, name) {
+  state.myList = state.myList.filter((e) => !match(e));
+  syncList();
+  save();
+  toast(`Removed ${name} from My List`, "close");
+  render(false);
+}
+
+function addFileToList(entry) {
+  state.myList.push({ kind: "file", id: `file-${fileKey(entry.path)}`, name: entry.name, path: entry.path, ftype: entry.type, size: entry.size || 0 });
+  save();
+  toast(`Added ${stripExt(entry.name)} to My List`, "check");
+  render(false);
+}
+
+function addListLink() {
+  openTextEntry({
+    kicker: "Add to My List · step 1 of 2",
+    title: "Web address",
+    kind: "url",
+    placeholder: "youtube.com/watch?v=…",
+    doneLabel: "Next",
+    validate: validUrl,
+    onDone: (raw) => {
+      const url = normalizeUrl(raw);
+      openTextEntry({
+        kicker: "Add to My List · step 2 of 2",
+        title: "Name",
+        kind: "text",
+        value: suggestName(url),
+        doneLabel: "Save",
+        validate: (v) => (v.trim() ? "" : "Type a name"),
+        onDone: (name) => {
+          state.myList.push({ kind: "link", id: `link-${Date.now().toString(36)}`, name, url });
+          save();
+          toast(`Saved ${name} to My List`, "check");
+          render(false);
+        }
+      });
+    }
+  });
+}
+
+function linkById(id) {
+  return state.myList.find((e) => e.kind === "link" && e.id === id);
+}
+
+function openLink(id) {
+  const e = linkById(id);
+  if (!e) return;
+  const hue = hash(e.url) % 360;
+  launchApp({ id: e.id, name: e.name, url: e.url, mode: "web", colors: [`hsl(${hue} 35% 14%)`, `hsl(${hue} 60% 48%)`] });
+}
+
+function openLinkMenu(id) {
+  const e = linkById(id);
+  if (!e) return false;
+  const match = (x) => x.kind === "link" && x.id === id;
+  openSheet({
+    kicker: `Link · ${hostOf(e.url)}`,
+    title: e.name,
+    actions: [
+      { label: "Open", icon: "play", run: () => openLink(id) },
+      {
+        label: "Rename",
+        icon: "edit",
+        run: () => openTextEntry({
+          kicker: "Rename",
+          title: "Name",
+          kind: "text",
+          value: e.name,
+          validate: (v) => (v.trim() ? "" : "Type a name"),
+          onDone: (name) => { e.name = name; save(); render(false); }
+        })
+      },
+      {
+        label: "Change web address",
+        icon: "link",
+        run: () => openTextEntry({
+          kicker: e.name,
+          title: "Web address",
+          kind: "url",
+          value: e.url,
+          validate: validUrl,
+          onDone: (raw) => { e.url = normalizeUrl(raw); save(); render(false); }
+        })
+      },
+      ...(state.screen === "list" ? listMoveActions(match) : []),
+      { label: "Remove from My List", icon: "close", danger: true, run: () => removeListEntry(match, e.name) }
+    ]
+  });
+  return true;
+}
+
+/* ---------- Text entry (on-screen keyboard for names, addresses, cities) ---------- */
+
+function openTextEntry(opts) {
+  if (!state.overlay || state.overlay.layout !== "keyboard") ui.teReturn = state.focusKey;
+  ui.te = { ...opts, value: opts.value || "", caps: false, error: "" };
+  ui.teTyped = false;
+  state.overlay = { layout: "keyboard", title: opts.title, kicker: opts.kicker || "" };
+  renderOverlay();
+  focusEl(findKey(ui.te.value ? "te-done" : "te-k0"));
+}
+
+function teKeysHtml() {
+  const t = ui.te;
+  const url = t.kind === "url";
+  const chars = [
+    ..."1234567890",
+    ..."abcdefghijklmnopqrstuvwxyz".split("").map((c) => (t.caps ? c.toUpperCase() : c)),
+    ...(url ? [".", "/", ":", "-", "_", "?", "=", "&"] : ["-", "'", "&", ".", ",", "!", "(", ")"])
+  ];
+  const keys = chars.map((c, i) => `<button type="button" class="key" data-key="te-k${i}" data-action="te-key" data-id="${esc(c)}">${esc(c)}</button>`).join("");
+  const wide = url
+    ? `<button type="button" class="key key--wide" data-key="te-https" data-action="te-key" data-id="https://">https://</button>
+       <button type="button" class="key key--wide" data-key="te-www" data-action="te-key" data-id="www.">www.</button>
+       <button type="button" class="key key--wide" data-key="te-com" data-action="te-key" data-id=".com">.com</button>
+       <button type="button" class="key key--wide" data-key="te-coza" data-action="te-key" data-id=".co.za">.co.za</button>`
+    : `<button type="button" class="key key--wide key--space" data-key="te-space" data-action="te-key" data-id=" " aria-label="Space">${icon("space")}<span>Space</span></button>`;
+  return `${keys}${wide}
+    <button type="button" class="key${t.caps ? " is-on" : ""}" data-key="te-caps" data-action="te-caps" aria-pressed="${t.caps}" aria-label="Capital letters">${icon("chevU")}</button>
+    <button type="button" class="key" data-key="te-del" data-action="te-del" aria-label="Delete">${icon("del")}</button>
+    <button type="button" class="key" data-key="te-clear" data-action="te-clear" aria-label="Clear">${icon("close")}</button>`;
+}
+
+function teHtml(o) {
+  const t = ui.te;
+  return `
+    <div class="sheet-scrim" data-action="te-cancel"></div>
+    <div class="te glass" role="dialog" aria-modal="true" aria-labelledby="te-title">
+      ${o.kicker ? `<p class="kicker">${esc(o.kicker)}</p>` : ""}
+      <h2 id="te-title">${esc(o.title)}</h2>
+      <div class="te-field">
+        <span id="te-text" class="te-text" data-placeholder="${esc(t.placeholder || "")}">${esc(t.value)}</span><span class="caret" aria-hidden="true"></span>
+      </div>
+      <p class="te-error" id="te-error" role="alert">${esc(t.error)}</p>
+      <div class="te-keys${t.kind === "url" ? " te-keys--url" : ""}" data-zone="te">${teKeysHtml()}</div>
+      <div class="actions te-actions" data-zone="te-actions">
+        <button type="button" class="btn btn--primary" data-key="te-done" data-action="te-done">${icon("check")}<span>${esc(t.doneLabel || "Done")}</span></button>
+        <button type="button" class="btn" data-key="te-cancel" data-action="te-cancel">Cancel</button>
+      </div>
+      <p class="sheet-hint">Use these keys or a keyboard. Enter finishes, Esc cancels.</p>
+    </div>`;
+}
+
+function paintTe() {
+  if (!ui.te) return;
+  setText("te-text", ui.te.value);
+  setText("te-error", ui.te.error || "");
+}
+
+function teType(text) {
+  if (!ui.te) return;
+  ui.te.value = (ui.te.value + text).slice(0, 400);
+  ui.te.error = "";
+  paintTe();
+}
+
+function teDelete() {
+  if (!ui.te) return;
+  ui.te.value = ui.te.value.slice(0, -1);
+  ui.te.error = "";
+  paintTe();
+}
+
+function teDone() {
+  const t = ui.te;
+  if (!t) return;
+  const value = t.value.trim();
+  const error = t.validate ? t.validate(value) : "";
+  if (error) {
+    t.error = error;
+    paintTe();
+    return;
+  }
+  const done = t.onDone;
+  const returnKey = ui.teReturn;
+  state.overlay = null;
+  ui.te = null;
+  renderOverlay();
+  if (done) done(value);
+  if (!state.overlay) {
+    state.focusKey = returnKey;
+    const el = findKey(returnKey);
+    if (el && document.activeElement !== el) focusEl(el, { noScroll: true });
+    else if (!el) restoreFocus();
+  }
+}
+
+function handleTeTyping(event) {
+  if (event.key === "Backspace") {
+    event.preventDefault();
+    teDelete();
+    ui.teTyped = true;
+    return true;
+  }
+  if (event.key === "Enter" && ui.teTyped) {
+    event.preventDefault();
+    teDone();
+    return true;
+  }
+  if (event.key.length === 1) {
+    event.preventDefault();
+    teType(event.key);
+    ui.teTyped = true;
+    return true;
+  }
+  if (event.key.startsWith("Arrow")) ui.teTyped = false;
+  return false;
+}
+
+/* ---------- Setup (first run, and Settings → Home screen → Run setup again) ---------- */
+
+const SETUP_STEPS = ["welcome", "style", "apps", "weather", "wallpaper", "done"];
+
+function setupGo(dir) {
+  const next = state.setupStep + dir;
+  if (next < 0) return;
+  if (next >= SETUP_STEPS.length) {
+    finishSetup();
+    return;
+  }
+  state.setupStep = next;
+  state.focusKey = null;
+  render(false);
+  if (SETUP_STEPS[next] === "weather" && state.prefs.weather.mode !== "off") refreshWeather(false);
+}
+
+function finishSetup() {
+  state.prefs.onboarded = true;
+  save();
+  state.setupStep = 0;
+  openNav("home");
+  setTimeout(() => toast("Hold OK, or press M, on anything for options", "info"), 900);
+}
+
+function styleMock(kind) {
+  if (kind === "minimal") {
+    return `<span class="mock mock--minimal" aria-hidden="true">
+      <i class="m-clock"></i><i class="m-line"></i>
+      <span class="m-row">${"<i></i>".repeat(5)}</span>
+      <span class="m-row m-row--wide">${"<i></i>".repeat(3)}</span>
+    </span>`;
+  }
+  return `<span class="mock mock--busy" aria-hidden="true">
+    <i class="m-hero"></i>
+    <span class="m-row">${"<i></i>".repeat(6)}</span>
+    <span class="m-row m-row--wide">${"<i></i>".repeat(4)}</span>
+    <span class="m-row m-row--tall">${"<i></i>".repeat(7)}</span>
+  </span>`;
+}
+
+function renderSetup() {
+  const step = SETUP_STEPS[state.setupStep] || "welcome";
+  const dots = SETUP_STEPS.map((_, i) => `<span class="${i === state.setupStep ? "on" : i < state.setupStep ? "done" : ""}"></span>`).join("");
+  const backBtn = state.setupStep > 0 ? `<button type="button" class="btn" data-key="setup-back" data-action="setup-back">${icon("chevL")}<span>Back</span></button>` : "";
+  const next = (label = "Continue", preferred = true) => `<button type="button" class="btn btn--primary" data-key="setup-next" data-action="setup-next"${preferred ? ' data-preferred="1"' : ""}><span>${esc(label)}</span>${icon("chevR")}</button>`;
+  let body = "";
+  if (step === "welcome") {
+    body = `
+      <img class="setup-logo" src="assets/logo.svg" alt="" width="96" height="96" />
+      <h1 class="setup-title">Welcome to Smart TV</h1>
+      <p class="lede">Let's set up your TV: how busy Home should be, your apps, the weather, and a wallpaper. Use the arrows and OK, or your mouse.</p>
+      <div class="actions">${next("Get started")}<button type="button" class="btn" data-key="setup-skip" data-action="setup-skip">Skip setup</button></div>`;
+  } else if (step === "style") {
+    const card = (id, name, desc) => `
+      <button type="button" class="style-card${state.prefs.homeStyle === id ? " is-chosen" : ""}" data-key="setup-style-${id}" data-action="setup-style" data-id="${id}"${state.prefs.homeStyle === id ? ' data-preferred="1"' : ""} aria-pressed="${state.prefs.homeStyle === id}">
+        ${styleMock(id)}
+        <span class="style-name">${esc(name)}</span>
+        <span class="style-desc">${esc(desc)}</span>
+      </button>`;
+    body = `
+      <p class="kicker">Step 1 of 4</p>
+      <h1 class="setup-title">How busy should Home be?</h1>
+      <div class="style-cards" data-zone="styles">
+        ${card("minimal", "Minimal", "The time, the weather, your apps, and what you were watching. Nothing else.")}
+        ${card("busy", "Busy", "Featured titles, Top 10, live channels, this PC's videos and music, and more.")}
+      </div>
+      <div class="actions">${backBtn}</div>`;
+  } else if (step === "apps") {
+    const tiles = allApps().filter((a) => a.mode !== "list").map((app) => {
+      const on = !isHidden(app.id);
+      return `
+        <button type="button" class="app-tile pick-tile${on ? " is-picked" : ""}" data-key="pick-${app.id}" data-action="setup-app" data-id="${app.id}" data-app="${app.id}" aria-pressed="${on}" aria-label="${esc(`${app.name}, ${on ? "on Home" : "hidden"}`)}">
+          <span class="app-art${["web", "chrome", "program"].includes(app.mode) ? " app-art--brand" : ""}" style="--a:${app.colors[0]};--b:${app.colors[1]}">
+            ${app.iconSrc ? `<img class="app-icon" src="${esc(app.iconSrc)}" alt="" />` : ["web", "chrome", "program"].includes(app.mode) ? `<span class="app-word app-word--${app.word || "plain"}">${esc(app.name)}</span>` : icon(app.icon)}
+            <span class="pick-check">${icon(on ? "check" : "plus")}</span>
+          </span>
+          <span class="tile-cap">${esc(app.name)}</span>
+        </button>`;
+    }).join("");
+    body = `
+      <p class="kicker">Step 2 of 4</p>
+      <h1 class="setup-title">Which apps go on Home?</h1>
+      <p class="lede">Select an app to add or remove it. Later, Apps → Add app adds any website or PC program.</p>
+      <div class="grid grid--apps setup-apps" data-zone="setup-apps">${tiles}</div>
+      <div class="actions">${backBtn}${next("Continue", false)}</div>`;
+  } else if (step === "weather") {
+    body = `
+      <p class="kicker">Step 3 of 4</p>
+      <h1 class="setup-title">Weather and time</h1>
+      <p class="lede">The clock already follows this computer (${esc(timeZoneName())}, ${esc(timeText())}). For the weather, Chrome may ask to use this computer's location.</p>
+      <div class="setup-panel glass">${weatherChoices()}</div>
+      <div class="actions">${backBtn}${next()}</div>`;
+  } else if (step === "wallpaper") {
+    const saved = state.settingsTab;
+    state.settingsTab = "wallpaper";
+    const pane = settingsPane();
+    state.settingsTab = saved;
+    body = `
+      <p class="kicker">Step 4 of 4</p>
+      <div class="setup-panel glass">${pane}</div>
+      <div class="actions">${backBtn}${next()}</div>`;
+  } else {
+    const shown = homeApps().length;
+    const now = weatherNow();
+    body = `
+      <span class="empty-mark">${icon("check")}</span>
+      <h1 class="setup-title">You're all set</h1>
+      <ul class="setup-summary">
+        <li>${icon("home")}<span>${state.prefs.homeStyle === "minimal" ? "Minimal" : "Busy"} Home</span></li>
+        <li>${icon("apps")}<span>${shown} app${shown === 1 ? "" : "s"} on Home</span></li>
+        <li>${icon(now ? now.ic : "cloud")}<span>${now ? `${now.place}, ${now.temp}°` : state.prefs.weather.mode === "off" ? "No weather" : "Weather on"}</span></li>
+        <li>${icon("image")}<span>${{ desktop: "Desktop wallpaper", custom: "Your picture", art: "Title artwork" }[state.prefs.wallpaper] || "Photo from My PC"}</span></li>
+      </ul>
+      <p class="lede">Change any of this in Settings. Hold OK on any app or title for options.</p>
+      <div class="actions">${backBtn}<button type="button" class="btn btn--primary" data-key="setup-finish" data-action="setup-finish" data-preferred="1">${icon("home")}<span>Go to Home</span></button></div>`;
+  }
+  return `
+    <section class="setup setup--${step}">
+      <div class="setup-dots" aria-hidden="true">${dots}</div>
+      <div class="setup-body">${body}</div>
+    </section>`;
 }
 
 /* ---------- Toasts, sound, ambient ---------- */
@@ -3049,6 +4220,9 @@ function hideAmbient() {
 
 function tickClock() {
   const now = new Date();
+  setText("mh-clock", timeText(now));
+  setText("mh-date", dateText(now));
+  setText("mh-greet", greeting(now));
   const time = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const clock = document.getElementById("clock");
   if (clock && clock.textContent !== time) {
@@ -3120,6 +4294,12 @@ function dispatch(cmd, target) {
   }
   if (ambientVisible()) {
     hideAmbient();
+    return;
+  }
+  if (ui.moving && !state.overlay) {
+    if (cmd === "left" || cmd === "up") moveApp(-1);
+    else if (cmd === "right" || cmd === "down") moveApp(1);
+    else if (cmd === "ok" || cmd === "back" || cmd === "menu") endMove();
     return;
   }
   if (state.screen === "player" && !state.overlay && playerCommand(cmd)) return;
@@ -3257,6 +4437,7 @@ function onKeyDown(event) {
     if (!event.repeat) hideAmbient();
     return;
   }
+  if (state.overlay && state.overlay.layout === "keyboard" && handleTeTyping(event)) return;
   if (state.screen === "search" && !state.overlay && handleSearchTyping(event)) return;
   const cmd = commandFor(event);
   if (!cmd) {
@@ -3455,19 +4636,11 @@ function init() {
     }
   });
   document.addEventListener("wheel", (event) => {
-    if (Math.abs(event.deltaY) >= Math.abs(event.deltaX)) ui.pointerScroll = true;
+    if (Math.abs(event.deltaY) >= Math.abs(event.deltaX)) ui.pointerScrollAt = Date.now();
   }, { passive: true, capture: true });
-  document.addEventListener("touchmove", () => { ui.pointerScroll = true; }, { passive: true, capture: true });
+  document.addEventListener("touchmove", () => { ui.pointerScrollAt = Date.now(); }, { passive: true, capture: true });
   document.addEventListener("scroll", (event) => {
-    const target = event.target;
-    if (!target || target.id !== "screen") {
-      if (target && target.classList && target.classList.contains("scroller")) ui.pointerScroll = false;
-      return;
-    }
-    document.body.classList.toggle("scrolled", target.scrollTop > 24);
-    if (!ui.pointerScroll) return;
-    ui.pointerScroll = false;
-    revealTopbar();
+    if (event.target && event.target.id === "screen") onScreenScroll(event.target);
   }, true);
   window.addEventListener("blur", cancelPress);
   window.addEventListener("focus", onReturn);
@@ -3504,11 +4677,22 @@ function init() {
   setInterval(tickHero, 1000);
   setInterval(tickPlayer, 250);
   markActivity();
+  loadWeatherCache();
+  if (!state.prefs.onboarded) {
+    state.screen = "setup";
+    state.setupStep = 0;
+  }
   render();
   applyWallpaper();
   connectCompanion();
+  if (state.prefs.onboarded) refreshWeather(false);
+  setInterval(() => refreshWeather(false), 10 * 60 * 1000);
+  document.addEventListener("error", (event) => {
+    const img = event.target;
+    if (img && img.tagName === "IMG" && img.closest && img.closest(".app-art, .folder-ic, .sig-app")) img.style.visibility = "hidden";
+  }, true);
 
-  if (!state.prefs.seenTips) {
+  if (!state.prefs.seenTips && state.prefs.onboarded) {
     setTimeout(() => toast("Tip: hold OK, or press M, for options on any title", "info"), 1600);
     state.prefs.seenTips = true;
     save();
