@@ -30,7 +30,9 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -38,5 +40,8 @@
       "createDesktopShortcut": true,
       "shortcutName": "Smart TV"
     }
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "2.20.1"
   }
 }

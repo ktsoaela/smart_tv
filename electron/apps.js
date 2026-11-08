@@ -9,9 +9,11 @@
 //   Hold Back (about 0.7 s)                 returns Home from anywhere
 //   Volume keys                             show the TV's volume panel
 //
-// Apps share one in-memory session. It is not written to disk, and it is gone when Smart TV closes.
+// Apps share one in-memory session. It is not written to disk, and it is gone when
+// Smart TV closes. An older copy saved on disk is cleared at startup.
 
-const { WebContentsView, session, ipcMain } = require("electron");
+const { app, WebContentsView, session, ipcMain } = require("electron");
+const fs = require("fs");
 const path = require("path");
 
 const PARTITION = "tv-apps";
@@ -84,6 +86,7 @@ class AppViews {
     this.onHudChoose = (_event, index) => this.chooseLeave(Number(index));
     ipcMain.on("hud-choose", this.onHudChoose);
     this.prepareSession();
+    this.adsReady = this.enableAds();
     win.on("resize", () => this.layout());
     win.on("app-command", (_e, cmd) => {
       if (this.active && cmd === "browser-backward") this.back(this.active);
@@ -94,18 +97,57 @@ class AppViews {
     const old = session.fromPartition("persist:tv-apps");
     old.clearStorageData().catch(() => {});
     old.clearCache().catch(() => {});
-    // Look like regular Chrome: some services refuse anything that says "Electron".
-    const ua = this.ses.getUserAgent().replace(/\s(?:Electron|Smart[ -]?TV)\/\S+/gi, "");
-    this.ses.setUserAgent(ua);
-    // Google's sign-in page blocks embedded Chromium; it accepts a Firefox user agent.
+    const full = process.versions.chrome || "140.0.0.0";
+    const major = full.split(".")[0];
+    const ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${full} Safari/537.36`;
+    this.chromeUa = ua;
+    this.ses.setUserAgent(ua, "en-US,en");
+    const brands = `"Google Chrome";v="${major}", "Chromium";v="${major}", "Not)A;Brand";v="24"`;
+    // Google's own sign-in page refuses an embedded Chromium. A Firefox agent gets past that one page.
     const firefox = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
-    this.ses.webRequest.onBeforeSendHeaders({ urls: ["https://accounts.google.com/*"] }, (details, callback) => {
-      details.requestHeaders["User-Agent"] = firefox;
-      callback({ requestHeaders: details.requestHeaders });
+    const setHeader = (headers, name, value) => {
+      const key = Object.keys(headers).find((item) => item.toLowerCase() === name.toLowerCase());
+      headers[key || name] = value;
+    };
+    this.ses.webRequest.onBeforeSendHeaders({ urls: ["<all_urls>"] }, (details, callback) => {
+      const headers = details.requestHeaders;
+      let host = "";
+      try {
+        host = new URL(details.url).hostname;
+      } catch {
+        /* keep whatever agent the view set */
+      }
+      const currentKey = Object.keys(headers).find((item) => item.toLowerCase() === "user-agent");
+      const current = currentKey ? headers[currentKey] : "";
+      if (/(^|\.)accounts\.google\.com$/i.test(host)) setHeader(headers, "User-Agent", firefox);
+      else if (!current || /electron/i.test(current)) {
+        setHeader(headers, "User-Agent", ua);
+        setHeader(headers, "sec-ch-ua", brands);
+        setHeader(headers, "sec-ch-ua-mobile", "?0");
+        setHeader(headers, "sec-ch-ua-platform", '"Windows"');
+      }
+      callback({ requestHeaders: headers });
     });
     const allowed = new Set(["fullscreen", "mediaKeySystem", "clipboard-sanitized-write", "pointerLock", "speaker-selection"]);
     this.ses.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed.has(permission)));
     this.ses.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+  }
+
+  // EasyList, applied to this session only. The list is cached so the next start is offline.
+  async enableAds() {
+    try {
+      const { ElectronBlocker } = require("@ghostery/adblocker-electron");
+      const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
+        path: path.join(app.getPath("userData"), "adblock.bin"),
+        read: fs.promises.readFile,
+        write: fs.promises.writeFile
+      });
+      blocker.config.loadCosmeticFilters = false;
+      blocker.config.enableMutationObserver = false;
+      blocker.enableBlockingInSession(this.ses);
+    } catch (err) {
+      console.error("Ad blocker did not start:", err && err.message ? err.message : err);
+    }
   }
 
   running() {
@@ -150,9 +192,8 @@ class AppViews {
         wc.executeJavaScript("window.close = () => console.info('__smarttv_exit__');", false).catch(() => {});
       }
     });
-    wc.on("console-message", (details, _level, legacyMessage) => {
-      const message = details && details.message !== undefined ? details.message : legacyMessage;
-      if (message === "__smarttv_exit__" && this.active === entry) this.home("app-home");
+    wc.on("console-message", (event) => {
+      if (event.message === "__smarttv_exit__" && this.active === entry) this.home("app-home");
     });
     // A page can close itself (YouTube on TV's "Exit" does): tidy up and go Home.
     wc.on("destroyed", () => {
@@ -200,6 +241,10 @@ class AppViews {
       }
       if (/^https?:/i.test(target)) wc.loadURL(target);
       return { action: "deny" };
+    });
+    // A site that tries to hand off to an external app (a Chrome shortcut protocol, for example) stays here.
+    wc.on("will-navigate", (event, target) => {
+      if (!/^https?:/i.test(target)) event.preventDefault();
     });
 
     wc.on("before-input-event", (event, input) => this.onKey(entry, event, input));
@@ -266,6 +311,7 @@ class AppViews {
   }
 
   async open(id, name, url, opts = {}) {
+    await Promise.race([this.adsReady, new Promise((resolve) => setTimeout(resolve, 8000))]);
     let entry = this.entries.get(id);
     const started = Date.now();
     // Switching between the TV layout and the normal site needs a fresh view.

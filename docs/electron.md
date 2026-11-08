@@ -46,12 +46,12 @@ Apps open in the same full-screen window, as web views laid over Home, like swit
 
 - **Fast:** the first two apps on Home load quietly (muted) when the TV starts, so they open in about half a second. Up to four apps stay loaded; switching back to one is instant. Going Home pauses whatever was playing.
 - **Remote:** Back (Esc, or the mouse's back button) goes back inside the app. On the app's first page, Back asks whether to leave. **Hold Back**, or the Home key, asks from anywhere. Stay keeps the app open. Go to Home returns to the TV with a zoom and fade. Volume keys show the TV's volume panel over the app. Ctrl+Shift+Q still exits.
-- **Signing in:** apps inside the TV share one session that lives in memory. Close Smart TV and the sign-ins are gone. Nothing from those sites is written under `%APPDATA%`. A sign-in page can still open in a small window above the app. Settings → TV mode → **Sign out of all apps** clears the session immediately.
-- **Your Chrome apps** open inside too, when Chrome already recorded a start address. Any it can't read open through their Chrome shortcut.
+- **Signing in:** Inside the TV, the site opens in your Google Chrome and is placed inside the Smart TV window. It is not a separate window. Chrome's own sign-in is used. Smart TV does not copy it and does not write it down. Back (Esc) closes that page and returns Home. It does not close your other Chrome windows. If Chrome cannot be placed inside, the site opens in the TV's own view. That view's sign-in stays in memory. Closing Smart TV drops it, and any older saved session is cleared the next time Smart TV starts.
+- **Your Chrome apps** open the same way: Smart TV reads the site address and opens it in Chrome, over the TV, instead of launching Chrome's separate shortcut window.
 - **Continue watching:** while Smart TV is open, a page with a title (and a picture, when the site provides one) is shown at the front of **Continue watching**. OK opens that page again. Hold OK to remove it. A site's own front page is skipped. Closing Smart TV drops that row. Night Market and Copper Line stay as sample titles.
 - **Options per app:** hold OK on an app → **Close app** (frees memory) or **Open in Chrome instead**.
 
-**Why it can't reuse your Chrome sign-ins:** Chrome encrypts its cookies with Windows app-bound encryption, so no other program, Electron included, can read them, and Chrome locks the profile while it's open. A separate sign-in inside the TV is the only way to keep apps inside.
+**Your Chrome sign-in:** Smart TV does not copy Chrome's cookies. It opens the site in Google Chrome itself and fits that window over the TV, so a sign-in that already exists in Chrome is the one you see. Back (Esc) closes only that window. The weather place is not written down. The public page stores nothing.
 
 ### TV layouts and remote navigation
 
@@ -115,6 +115,7 @@ The PC sees the remote as keyboard keys. Smart TV listens for arrows, Enter (OK)
 | `electron/main.js` | Kiosk window, `app://tv` scheme, Widevine check, Chrome options, sources, TV mode settings |
 | `electron/api.js` | The `/api/*` endpoints: files with byte ranges, Chrome shortcuts, programs and icons, wallpaper, volume, launching |
 | `electron/audio.js` | Windows system volume through a long-lived PowerShell process (no native modules) |
-| `electron/apps.js` | Apps inside the TV: views, in-memory session, Back and Home, preloading, the panel over apps |
+| `electron/apps.js` | Apps inside the TV: views, in-memory session, ad blocking, Back and Home, preloading, the panel over apps |
+| `electron/chrome-webapps.js` | Reads the site address of a Chrome or Edge shortcut so it opens inside the TV |
 | `electron/hud.html` | The small panel shown over apps (hints, volume) |
 | `electron/preload.js` | The page's only bridge: TV events and quit |
