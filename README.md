@@ -30,22 +30,28 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 - **Searches from the couch.** An on-screen keyboard, genre shortcuts, live results, and voice where the browser supports it.
 - **Plays a preview properly.** Controls hide on their own, skip 10 seconds, captions, and an Up next countdown.
 - **Respects the room.** Same layout at 1080p and 4K, reduce-motion and larger-text settings, high-contrast focus, and an ambient screen when idle.
+- **Plays your own media.** My PC browses this computer's folders with the remote and plays videos, music, and photos, with resume, Next/Previous, and a slideshow.
+- **Opens your streaming apps.** Netflix, SABC Plus, DStv, Spotify, and YouTube Music, plus every shortcut you made in Chrome, with its own icon.
+- **Feels like a TV.** A volume panel when the volume changes in full screen, your desktop wallpaper behind Home, and a Source button that switches to the browser or the desktop like changing HDMI input.
 - **Keeps your list,** progress, and settings in this browser.
 
 ---
 
 ## Quick start
 
-**Requirements:** a current browser. Python 3 is only needed to serve the folder.
+**Requirements:** a current browser and Python 3 (standard library only).
 
 ```bash
-py -m http.server 8787
+py server.py
 ```
+
+That starts the companion on `http://localhost:8787` and opens it. The companion is what lets the launcher see this PC: My PC files, your Chrome shortcuts, the desktop wallpaper, system volume, and source switching. It only listens on this computer unless you pass `--lan`.
 
 | Goal | Command |
 | --- | --- |
-| Open on this computer | Double-click `index.html` |
-| Serve the folder | `py -m http.server 8787` → `http://localhost:8787` |
+| Full launcher on this PC | `py server.py` → `http://localhost:8787` |
+| Also reach it from a TV on your network | `py server.py --lan`, then open the printed address with its key |
+| Demo only, no PC features | Double-click `index.html` |
 
 ---
 
@@ -54,8 +60,10 @@ py -m http.server 8787
 | Path | Purpose |
 | --- | --- |
 | `index.html` | Launcher page |
+| `server.py` | Companion: files and streaming, Chrome shortcuts, wallpaper, system volume, sources |
 | `css/tv.css` | 10-foot layout, glass materials, focus motion |
-| `js/tv.js` | Screens, spatial focus, input, list, preview |
+| `css/media.css` | Media player, My PC, wallpaper, volume panel, source bar |
+| `js/tv.js` | Screens, spatial focus, input, media player, apps, sources |
 | `docs/guide.md` | Keys, network URL, Google TV hardware |
 | `assets/logo.svg` | Mark |
 

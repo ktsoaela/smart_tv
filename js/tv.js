@@ -34,7 +34,18 @@ const catalog = [
   { id: "concert-hour", title: "Concert Hour", kind: "live", genre: "Music", year: 2026, minutes: 0, blurb: "One stage, one hour, and the room noise left in.", colors: ["#2a1424", "#ff8ad4"] }
 ];
 
+// Streaming services open in Chrome. If you already made a Chrome shortcut for one,
+// the tile opens that shortcut instead (same name), so it keeps your sign-in and window.
+const STREAMING = [
+  { id: "netflix", name: "Netflix", mode: "web", url: "https://www.netflix.com/browse", blurb: "Films and series. Opens in Chrome.", colors: ["#140405", "#e50914"], word: "netflix" },
+  { id: "sabcplus", name: "SABC Plus", mode: "web", url: "https://www.sabc-plus.com/", blurb: "SABC channels, live and on demand. Opens in Chrome.", colors: ["#061a33", "#2b8fe8"], word: "sabc" },
+  { id: "dstv", name: "DStv", mode: "web", url: "https://now.dstv.com/", blurb: "DStv Stream: live channels and catch-up. Opens in Chrome.", colors: ["#03112a", "#1673ff"], word: "dstv" },
+  { id: "spotify", name: "Spotify", mode: "web", url: "https://open.spotify.com/", blurb: "Music and podcasts. Opens in Chrome.", colors: ["#06140b", "#1ed760"], word: "spotify" },
+  { id: "ytmusic", name: "YouTube Music", mode: "web", url: "https://music.youtube.com/", blurb: "Songs, albums, and mixes. Opens in Chrome.", colors: ["#170405", "#ff2a2a"], word: "ytmusic" }
+];
+
 const apps = [
+  { id: "files", name: "My PC", icon: "pc", mode: "files", blurb: "Videos, music, and photos on this computer.", colors: ["#16202e", "#8ab4ff"] },
   { id: "cinema", name: "Cinema", icon: "film", mode: "kind", kind: "movie", blurb: "Films on this launcher.", colors: ["#3a1d14", "#e07a45"] },
   { id: "series", name: "Series", icon: "layers", mode: "kind", kind: "show", blurb: "Series and shorter episodes.", colors: ["#142033", "#7eb6ff"] },
   { id: "livedesk", name: "Live Desk", icon: "broadcast", mode: "kind", kind: "live", blurb: "The channels on the live row.", colors: ["#2a1216", "#ff6b6b"] },
@@ -72,12 +83,14 @@ const NAV = [
   { id: "search", label: "Search", icon: "search", iconOnly: true },
   { id: "home", label: "Home", icon: "home" },
   { id: "apps", label: "Apps", icon: "apps" },
+  { id: "files", label: "My PC", icon: "pc" },
   { id: "list", label: "My List", icon: "bookmark" },
   { id: "settings", label: "Settings", icon: "sliders", iconOnly: true }
 ];
 
 const SETTINGS_TABS = [
   { id: "display", label: "Display & motion" },
+  { id: "wallpaper", label: "Wallpaper" },
   { id: "sound", label: "Sound" },
   { id: "playback", label: "Playback" },
   { id: "input", label: "Remote & keys" },
@@ -93,7 +106,18 @@ const DEFAULT_PREFS = {
   autoplayNext: true,
   captions: false,
   remoteOpen: false,
-  seenTips: false
+  seenTips: false,
+  wallpaper: "desktop",
+  appVolume: 0.8
+};
+
+// The companion (server.py) unlocks files, Chrome shortcuts, wallpaper, system volume, and sources.
+const server = {
+  ok: false,
+  canLaunch: false,
+  volume: false,
+  wallpaper: false,
+  key: new URLSearchParams(location.search).get("key") || ""
 };
 
 const state = {
@@ -108,6 +132,9 @@ const state = {
   heroIndex: 0,
   progress: {},
   watchedAt: {},
+  mediaProgress: {},
+  path: null,
+  media: null,
   list: new Set(),
   prefs: { ...DEFAULT_PREFS },
   position: 0,
@@ -146,7 +173,22 @@ const ui = {
   pointer: { x: -1, y: -1 },
   audio: null,
   gpRaf: 0,
-  gp: {}
+  gp: {},
+  chromeApps: [],
+  library: null,
+  places: null,
+  lists: {},
+  loading: {},
+  away: false,
+  wasFullscreen: false,
+  refullscreen: false,
+  volume: { level: 0.5, muted: false, known: false },
+  volTimer: 0,
+  volBusy: false,
+  slideTimer: 0,
+  mediaSaveAt: 0,
+  wallUrl: "",
+  signalTimer: 0
 };
 
 /* ---------- Icons ---------- */
@@ -183,7 +225,25 @@ const ICONS = {
   broadcast: '<circle cx="12" cy="12" r="2"/><path d="M8.2 15.8a5.4 5.4 0 0 1 0-7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/>',
   sparkle: '<path d="M11 3.5l1.9 5.3 5.3 1.9-5.3 1.9L11 17.9l-1.9-5.3-5.3-1.9 5.3-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
-  cloud: '<path d="M7 18.5h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.6 4.5 4.5 0 0 0 7 18.5z"/>'
+  cloud: '<path d="M7 18.5h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.6 4.5 4.5 0 0 0 7 18.5z"/>',
+  volume: '<path class="f" d="M4 9.5h3.2L12 5.6v12.8l-4.8-3.9H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11"/>',
+  volumeLow: '<path class="f" d="M4 9.5h3.2L12 5.6v12.8l-4.8-3.9H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6"/>',
+  mute: '<path class="f" d="M4 9.5h3.2L12 5.6v12.8l-4.8-3.9H4z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>',
+  volUp: '<path d="M5 12h14M12 5v14"/>',
+  volDown: '<path d="M5 12h14"/>',
+  input: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/><path d="M9 10.5h6M12.5 8l2.5 2.5-2.5 2.5"/>',
+  pc: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>',
+  folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+  file: '<path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z"/><path d="M13.5 3.5V8h4.5"/>',
+  music: '<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>',
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>',
+  desktop: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20M6 8h3v2.5H6z"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5S14.6 18.1 12 20.5C9.4 18.1 8.2 15.3 8.2 12S9.4 5.9 12 3.5z"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8M9.5 2.5L12 5l2.5-2.5"/>',
+  prev: '<path class="f" d="M19 6.2v11.6c0 .7-.8 1.1-1.4.7l-8.4-5.8c-.5-.4-.5-1.1 0-1.4l8.4-5.8c.6-.4 1.4 0 1.4.7z"/><path d="M5.5 5.5v13"/>',
+  drive: '<rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 12h.01M10.5 12h6"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/>'
 };
 
 function icon(name, cls = "") {
@@ -229,8 +289,92 @@ function itemById(id) {
   return catalog.find((item) => item.id === id);
 }
 
+function streamingApps() {
+  return STREAMING.map((app) => {
+    const match = ui.chromeApps.find((c) => c.name.toLowerCase() === app.name.toLowerCase()
+      || c.name.toLowerCase().startsWith(`${app.name.toLowerCase()} `));
+    return match ? { ...app, chromeId: match.id, iconSrc: match.hasIcon ? iconUrl(match.id) : "" } : app;
+  });
+}
+
+function chromeOnlyApps() {
+  const taken = new Set(streamingApps().map((a) => a.chromeId).filter(Boolean));
+  return ui.chromeApps.filter((c) => !taken.has(c.id)).map((c) => ({
+    id: `chrome-${c.id}`,
+    name: c.name.split(" - ")[0].trim(),
+    fullName: c.name,
+    mode: "chrome",
+    chromeId: c.id,
+    iconSrc: c.hasIcon ? iconUrl(c.id) : "",
+    blurb: `Your ${c.browser} shortcut. Opens in its own window.`,
+    colors: [`hsl(${hash(c.id) % 360} 35% 14%)`, `hsl(${hash(c.id) % 360} 55% 42%)`]
+  }));
+}
+
+function allApps() {
+  return [...streamingApps(), ...chromeOnlyApps(), ...apps];
+}
+
 function appById(id) {
-  return apps.find((app) => app.id === id);
+  return allApps().find((app) => app.id === id);
+}
+
+/* ---------- Companion API ---------- */
+
+function withKey(url) {
+  return server.key ? `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(server.key)}` : url;
+}
+
+function fileUrl(path) {
+  return withKey(`/api/file?path=${encodeURIComponent(path)}`);
+}
+
+function iconUrl(id) {
+  return withKey(`/api/icon?id=${encodeURIComponent(id)}`);
+}
+
+async function api(path, body) {
+  const opts = { headers: {} };
+  if (server.key) opts.headers["X-TV-Key"] = server.key;
+  if (body !== undefined) {
+    opts.method = "POST";
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  return data;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let n = bytes;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n >= 10 || i === 0 ? Math.round(n) : n.toFixed(1)} ${units[i]}`;
+}
+
+function baseName(path) {
+  return String(path).split(/[\\/]/).filter(Boolean).pop() || path;
+}
+
+function folderOf(path) {
+  const parts = String(path).split(/[\\/]/).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 2] : "";
+}
+
+function stripExt(name) {
+  return name.replace(/\.[^.]+$/, "");
+}
+
+function extOf(name) {
+  const m = /\.([^.]+)$/.exec(name);
+  return m ? m[1].toUpperCase() : "";
 }
 
 function byKind(kind) {
@@ -311,7 +455,11 @@ function motionReduced() {
 }
 
 function formatClock(totalSeconds) {
-  const whole = Math.max(0, Math.round(totalSeconds));
+  const whole = Math.max(0, Math.round(totalSeconds || 0));
+  if (whole >= 3600) {
+    const h = Math.floor(whole / 3600);
+    return `${h}:${String(Math.floor((whole % 3600) / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
+  }
   return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
 }
 
@@ -349,6 +497,7 @@ function load() {
   }
   state.progress = saved && saved.progress && typeof saved.progress === "object" ? saved.progress : { ...SAMPLE_PROGRESS };
   state.watchedAt = saved && saved.watchedAt && typeof saved.watchedAt === "object" ? saved.watchedAt : {};
+  state.mediaProgress = saved && saved.mediaProgress && typeof saved.mediaProgress === "object" ? saved.mediaProgress : {};
   state.list = new Set(saved && Array.isArray(saved.list) ? saved.list.filter(itemById) : []);
   state.prefs = { ...DEFAULT_PREFS, ...(saved && saved.prefs ? saved.prefs : {}) };
 }
@@ -358,6 +507,7 @@ function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       progress: state.progress,
       watchedAt: state.watchedAt,
+      mediaProgress: state.mediaProgress,
       list: [...state.list],
       prefs: state.prefs
     }));
@@ -396,7 +546,10 @@ function topbar() {
     <header class="topbar">
       <div class="brand"><img src="assets/logo.svg" width="40" height="40" alt="" /><span>Smart TV</span></div>
       <nav class="tabs glass" data-zone="nav" aria-label="Sections">${tabs}</nav>
-      <div class="top-end"><time id="clock" class="clock"></time><span class="avatar" aria-hidden="true">G</span></div>
+      <div class="top-end">
+        <button type="button" class="tab tab--icon" data-key="top-source" data-action="source" aria-label="Source (switch to browser or desktop)">${icon("input")}</button>
+        <time id="clock" class="clock"></time><span class="avatar" aria-hidden="true">G</span>
+      </div>
     </header>`;
 }
 
@@ -424,11 +577,69 @@ function tile(item, section, opts = {}) {
 }
 
 function appTile(app, section, preferred = false) {
+  const external = app.mode === "web" || app.mode === "chrome";
+  let face;
+  if (app.iconSrc) face = `<img class="app-icon" src="${esc(app.iconSrc)}" alt="" loading="lazy" decoding="async" />`;
+  else if (external) face = `<span class="app-word app-word--${app.word || "plain"}">${esc(app.name)}</span>`;
+  else face = icon(app.icon);
+  const via = app.chromeId ? '<span class="app-via">Chrome app</span>' : "";
+  const label = external ? `${app.name}. Opens in ${app.chromeId ? "its Chrome window" : "Chrome"}` : app.name;
   return `
-    <button type="button" class="app-tile" data-key="${section}-${app.id}" data-action="app" data-id="${app.id}" data-app="${app.id}"${preferred ? ' data-preferred="1"' : ""} aria-label="${esc(app.name)}">
-      <span class="app-art" style="--a:${app.colors[0]};--b:${app.colors[1]}">${icon(app.icon)}<span class="sheen"></span></span>
+    <button type="button" class="app-tile" data-key="${section}-${app.id}" data-action="app" data-id="${app.id}" data-app="${app.id}"${preferred ? ' data-preferred="1"' : ""} aria-label="${esc(label)}">
+      <span class="app-art${external ? " app-art--brand" : ""}" style="--a:${app.colors[0]};--b:${app.colors[1]}">${face}${via}<span class="sheen"></span></span>
       <span class="tile-cap">${esc(app.name)}</span>
     </button>`;
+}
+
+function fileKey(path) {
+  return hash(path).toString(36);
+}
+
+function fileTile(entry, section, opts = {}) {
+  const art = artOf(["#151a24", `hsl(${hash(entry.name) % 360} 55% 52%)`], entry.path);
+  const prog = state.mediaProgress[entry.path];
+  const bar = prog && prog.d ? Math.min(1, prog.t / prog.d) : 0;
+  const kindIcon = entry.type === "audio" ? "music" : entry.type === "image" ? "image" : "film";
+  const cap = opts.caption || [folderOf(entry.path), formatBytes(entry.size)].filter(Boolean).join(" · ");
+  const thumb = entry.type === "image"
+    ? `<img class="thumb" src="${esc(fileUrl(entry.path))}" alt="" loading="lazy" decoding="async" />`
+    : `<span class="kind-mark">${icon(kindIcon)}</span>`;
+  return `
+    <button type="button" class="tile tile--wide tile--file" data-key="${section}-${fileKey(entry.path)}" data-action="open-file" data-path="${esc(entry.path)}" data-ftype="${entry.type}" data-section="${section}"${opts.preferred ? ' data-preferred="1"' : ""} aria-label="${esc(`${entry.name}. ${cap}`)}">
+      <span class="tile-art ${art.cls}" style="${art.style}">
+        ${thumb}
+        <span class="badge">${esc(extOf(entry.name))}</span>
+        <span class="tile-title">${esc(stripExt(entry.name))}</span>
+        ${bar > 0.01 && bar < 0.97 ? `<span class="tile-bar"><span style="width:${(bar * 100).toFixed(1)}%"></span></span>` : ""}
+        <span class="sheen"></span>
+      </span>
+      <span class="tile-cap">${esc(cap)}</span>
+    </button>`;
+}
+
+function folderTile(entry, section, opts = {}) {
+  const ic = opts.icon || (entry.type === "drive" ? "drive" : "folder");
+  return `
+    <button type="button" class="folder-tile" data-key="${section}-${fileKey(entry.path)}" data-action="open-dir" data-path="${esc(entry.path)}"${opts.preferred ? ' data-preferred="1"' : ""} aria-label="${esc(`${entry.name}, ${opts.caption || "folder"}`)}">
+      <span class="folder-ic">${icon(ic)}</span>
+      <span class="folder-text"><span class="folder-name">${esc(entry.name)}</span><span class="folder-cap">${esc(opts.caption || "Folder")}</span></span>
+    </button>`;
+}
+
+// Files the home screen and the media player share: rows keep their entries so Next/Previous work.
+const fileSets = {};
+
+function rememberSet(section, entries) {
+  fileSets[section] = entries;
+  return entries;
+}
+
+function localContinue() {
+  return Object.entries(state.mediaProgress)
+    .filter(([, p]) => p.d && p.t > 5 && p.t < p.d - 10 && p.type !== "image")
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, 12)
+    .map(([path, p]) => ({ name: p.name || baseName(path), path, type: p.type, size: p.size || 0 }));
 }
 
 function rowHtml(id, title, tilesHtml, variant = "wide") {
@@ -453,9 +664,17 @@ function homeRows() {
   const rows = [];
   const cont = continueItems();
   if (cont.length) rows.push({ id: "cont", title: "Continue watching", items: cont, variant: "wide" });
-  rows.push({ id: "top", title: "Top 10 today", items: TOP_TEN_IDS.map(itemById).filter(Boolean), variant: "tall", ranked: true });
   rows.push({ id: "apps", title: "Your apps", apps: true });
+  const pcCont = localContinue();
+  if (pcCont.length) rows.push({ id: "pccont", title: "Continue on this PC", files: rememberSet("r-pccont", pcCont) });
+  rows.push({ id: "top", title: "Top 10 today", items: TOP_TEN_IDS.map(itemById).filter(Boolean), variant: "tall", ranked: true });
+  if (ui.library && ui.library.videos && ui.library.videos.length) {
+    rows.push({ id: "pcvideo", title: "Videos on this PC", files: rememberSet("r-pcvideo", ui.library.videos) });
+  }
   rows.push({ id: "live", title: "Live now", items: byKind("live"), variant: "wide" });
+  if (ui.library && ui.library.music && ui.library.music.length) {
+    rows.push({ id: "pcmusic", title: "Music on this PC", files: rememberSet("r-pcmusic", ui.library.music) });
+  }
   const seed = cont[0];
   if (seed) {
     const similar = catalog.filter((item) => item.genre === seed.genre && item.id !== seed.id && item.kind !== "live");
@@ -497,7 +716,8 @@ function heroInner(dir = 0) {
 
 function renderHome() {
   const rows = homeRows().map((row) => {
-    if (row.apps) return rowHtml(row.id, row.title, apps.map((app) => appTile(app, `r-${row.id}`)).join(""), "apps");
+    if (row.apps) return rowHtml(row.id, row.title, homeApps().map((app) => appTile(app, `r-${row.id}`)).join(""), "apps");
+    if (row.files) return rowHtml(row.id, row.title, row.files.map((entry) => fileTile(entry, `r-${row.id}`)).join(""), "wide");
     return mediaRow(row);
   }).join("");
   return `
@@ -509,11 +729,27 @@ function pageHead(title, lede, extra = "") {
   return `<header class="page-head">${extra}<div><h1>${esc(title)}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div></header>`;
 }
 
+function homeApps() {
+  return [...streamingApps(), ...chromeOnlyApps(), apps[0], ...apps.slice(1).filter((a) => a.mode !== "list")];
+}
+
 function renderApps() {
+  const chrome = chromeOnlyApps();
+  const chromeNote = server.ok
+    ? "Shortcuts you made in Chrome (⋮ → Cast, save, and share → Create shortcut, or Install) show up here."
+    : "Start the companion (py server.py) and the shortcuts you made in Chrome show up here.";
   return `
     <div class="page">
-      ${pageHead("Apps", "Everything on this TV. Weather is a sample panel.")}
-      <div class="grid grid--apps" data-zone="grid">${apps.map((app, i) => appTile(app, "grid", i === 0)).join("")}</div>
+      ${pageHead("Apps", "Streaming opens in Chrome. Everything else runs on this TV.")}
+      <h2 class="block-title">Streaming</h2>
+      <div class="grid grid--apps" data-zone="grid-stream">${streamingApps().map((app, i) => appTile(app, "stream", i === 0)).join("")}</div>
+      <h2 class="block-title block-title--gap">From Chrome <span class="count">${chrome.length}</span></h2>
+      ${chrome.length
+        ? `<div class="grid grid--apps" data-zone="grid-chrome">${chrome.map((app) => appTile(app, "chrome")).join("")}</div>`
+        : ""}
+      <p class="lede lede--note">${esc(chromeNote)}</p>
+      <h2 class="block-title block-title--gap">On this TV</h2>
+      <div class="grid grid--apps" data-zone="grid-tv">${apps.map((app) => appTile(app, "tv")).join("")}</div>
     </div>`;
 }
 
@@ -570,7 +806,7 @@ function searchResults() {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => b.score - a.score || a.order - b.order)
     .map((hit) => hit.item);
-  const appHits = apps.filter((app) => `${app.name} ${app.blurb}`.toLowerCase().includes(q));
+  const appHits = allApps().filter((app) => `${app.name} ${app.fullName || ""}`.toLowerCase().includes(q));
   if (!media.length && !appHits.length) {
     return `
       <div class="results-block">
@@ -635,6 +871,22 @@ function settingsPane() {
         + toggleRow("reduceMotion", "Reduce motion", "Turns off zoom, parallax, and slide transitions. Your system setting applies too.")
         + toggleRow("largeText", "Larger text", "Raises type and tiles by about 12 percent.")
         + toggleRow("ambient", "Ambient mode", "After two minutes idle, shows slow artwork and the time.");
+    case "wallpaper": {
+      const wp = state.prefs.wallpaper;
+      const choice = (id, title, desc, extra = "") => `
+        <button type="button" class="switch-row choice${wp === id || (id === "file" && wp.startsWith("file:")) ? " is-chosen" : ""}" role="radio" aria-checked="${wp === id || (id === "file" && wp.startsWith("file:"))}" data-key="wall-${id}" data-action="wall" data-id="${id}"${extra}>
+          <span class="sr-text"><span class="sr-label">${esc(title)}</span><span class="sr-desc">${esc(desc)}</span></span>
+          <span class="radio" aria-hidden="true"></span>
+        </button>`;
+      const preview = ui.wallUrl ? `<div class="wall-preview" style="background-image:url('${esc(ui.wallUrl)}')"></div>` : "";
+      return paneHead("Wallpaper", "Shown behind Home, Apps, My PC, and Settings.")
+        + preview
+        + choice("desktop", "Desktop wallpaper", server.wallpaper ? "The picture on your Windows desktop. This is the default." : "Needs the companion (py server.py) to read your desktop picture.")
+        + choice("custom", "Choose an image…", "Pick any picture from this computer. It stays in this browser.")
+        + (wp.startsWith("file:") ? choice("file", "Photo from My PC", baseName(wp.slice(5))) : "")
+        + choice("art", "Title artwork", "Artwork that follows the title you focus, with no wallpaper.")
+        + `<p class="lede lede--note">Tip: in My PC, hold OK on any photo and choose <strong>Set as wallpaper</strong>.</p>`;
+    }
     case "sound":
       return paneHead("Sound", "Quiet by default.")
         + toggleRow("sounds", "Navigation sounds", "A soft tick when focus moves and a tone when you select.")
@@ -651,6 +903,8 @@ function settingsPane() {
             <tr><td><kbd>Enter</kbd></td><td>Select. Hold for options</td></tr>
             <tr><td><kbd>Esc</kbd> <kbd>Backspace</kbd></td><td>Back. On Home, back returns to the top</td></tr>
             <tr><td><kbd>M</kbd></td><td>Options for the focused title</td></tr>
+            <tr><td><kbd>I</kbd></td><td>Source: switch to the browser or the desktop</td></tr>
+            <tr><td><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></td><td>Volume up, down, and mute. Volume keys on the keyboard show the volume too</td></tr>
             <tr><td><kbd>/</kbd></td><td>Search</td></tr>
             <tr><td><kbd>F</kbd></td><td>Fullscreen</td></tr>
             <tr><td><kbd>K</kbd> <kbd>J</kbd> <kbd>L</kbd></td><td>Play or pause, back 10 s, forward 10 s</td></tr>
@@ -667,7 +921,15 @@ function settingsPane() {
             </button>`;
         }).join("");
     default:
-      return paneHead("About & reset", "Smart TV 13 · a browser launcher with a remote.")
+      return paneHead("About & reset", "Smart TV 13 · a browser launcher and media player with a remote.")
+        + `<div class="status-card${server.ok ? " is-on" : ""}">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div><p class="sr-label">${server.ok ? "Companion connected" : "Companion not running"}</p>
+            <p class="sr-desc">${server.ok
+              ? `My PC files, Chrome shortcuts (${ui.chromeApps.length}), desktop wallpaper${server.volume ? ", system volume" : ""}${server.canLaunch ? ", and source switching" : ""} are on.`
+              : "Run <kbd>py server.py</kbd> in this folder, then open http://localhost:8787 to browse this PC, use your Chrome shortcuts, your desktop wallpaper, and system volume."}</p></div>
+          </div>`
+        + (server.ok ? `<button type="button" class="path" data-key="refresh-apps" data-action="refresh-apps"><span class="path-title">Look for new Chrome shortcuts</span><span class="path-body">Run this after you make a shortcut in Chrome.</span></button>` : "")
         + `<button type="button" class="path path--danger" data-key="reset-demo" data-action="reset">
             <span class="path-title">Reset demo data</span>
             <span class="path-body">Brings back the sample Continue watching row and clears My List. Your settings stay.</span>
@@ -677,7 +939,7 @@ function settingsPane() {
 
 function renderSettings() {
   const tabs = SETTINGS_TABS.map((tab) => `
-    <button type="button" class="side-item${tab.id === state.settingsTab ? " is-on" : ""}" data-key="set-${tab.id}" data-action="settings-tab" data-id="${tab.id}">
+    <button type="button" class="side-item${tab.id === state.settingsTab ? " is-on" : ""}" data-key="set-${tab.id}" data-action="settings-tab" data-id="${tab.id}"${tab.id === state.settingsTab ? ' data-preferred="1"' : ""}>
       <span>${esc(tab.label)}</span>${icon("chevR")}
     </button>`).join("");
   return `
@@ -804,8 +1066,201 @@ function renderPlayer() {
     </section>`;
 }
 
+/* ---------- My PC ---------- */
+
+function companionCard(feature) {
+  return `
+    <div class="page page--empty">
+      <div class="empty">
+        <span class="empty-mark">${icon("pc")}</span>
+        <h1>${esc(feature)} needs the companion</h1>
+        <p class="lede">A web page can't see your files on its own. Start the small companion that came with Smart TV, then open the address it shows.</p>
+        <div class="steps glass">
+          <p><span class="step-n">1</span>Open a terminal in the Smart TV folder</p>
+          <p><span class="step-n">2</span>Run <kbd>py server.py</kbd></p>
+          <p><span class="step-n">3</span>It opens <strong>http://localhost:8787</strong> for you</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn--primary" data-key="companion-home" data-action="nav" data-id="home" data-preferred="1">${icon("home")}<span>Back to Home</span></button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function loadingView(text) {
+  return `<div class="page page--empty"><div class="empty"><span class="spinner" aria-hidden="true"></span><p class="lede">${esc(text)}</p></div></div>`;
+}
+
+function ensurePlaces() {
+  if (ui.places || ui.loading.places) return;
+  ui.loading.places = true;
+  api("/api/places")
+    .then((data) => { ui.places = data; })
+    .catch((err) => { ui.places = { error: err.message }; })
+    .finally(() => {
+      delete ui.loading.places;
+      if (state.screen === "files" && !state.path) render(false);
+    });
+}
+
+function ensureList(path) {
+  if (ui.lists[path] || ui.loading[path]) return;
+  ui.loading[path] = true;
+  api(`/api/list?path=${encodeURIComponent(path)}`)
+    .then((data) => { ui.lists[path] = data; })
+    .catch((err) => { ui.lists[path] = { error: err.message }; })
+    .finally(() => {
+      delete ui.loading[path];
+      if (state.screen === "files" && state.path === path) render(false);
+    });
+}
+
+function renderFiles() {
+  if (!server.ok) return companionCard("My PC");
+  if (!state.path) {
+    if (!ui.places) {
+      ensurePlaces();
+      return loadingView("Looking at this PC…");
+    }
+    if (ui.places.error) return `<div class="page">${pageHead("My PC", esc(ui.places.error))}</div>`;
+    const places = ui.places.places.map((p, i) => folderTile({ ...p }, "place", { icon: p.icon, caption: p.path, preferred: i === 0 })).join("");
+    const drives = ui.places.drives.map((d) => folderTile({ ...d, type: "drive" }, "drive", {
+      caption: d.total ? `${formatBytes(d.free)} free of ${formatBytes(d.total)}` : d.path
+    })).join("");
+    return `
+      <div class="page">
+        ${pageHead("My PC", "Videos, music, and photos on this computer. Pick a place to start.")}
+        <h2 class="block-title">Places</h2>
+        <div class="grid grid--folders" data-zone="places">${places}</div>
+        <h2 class="block-title block-title--gap">Drives</h2>
+        <div class="grid grid--folders" data-zone="drives">${drives}</div>
+      </div>`;
+  }
+  const data = ui.lists[state.path];
+  if (!data) {
+    ensureList(state.path);
+    return loadingView(`Opening ${baseName(state.path)}…`);
+  }
+  const crumbs = state.path.split(/[\\/]/).filter(Boolean);
+  const head = `
+    <header class="page-head page-head--files">
+      <span class="app-badge app-badge--plain">${icon("folder")}</span>
+      <div>
+        <p class="crumbs">${crumbs.map(esc).join(`<span class="crumb-sep">›</span>`)}</p>
+        <h1>${esc(data.name || baseName(state.path))}</h1>
+      </div>
+    </header>`;
+  if (data.error) {
+    return `<div class="page">${head}<p class="lede">${esc(data.error)}</p>
+      <div class="actions"><button type="button" class="btn btn--primary" data-key="files-back" data-action="back" data-preferred="1">${icon("chevL")}<span>Back</span></button></div></div>`;
+  }
+  const dirs = data.entries.filter((e) => e.type === "dir");
+  const media = rememberSet("files", data.entries.filter((e) => e.type !== "dir"));
+  const counts = ["video", "audio", "image"].map((t) => [t, media.filter((e) => e.type === t).length]).filter(([, n]) => n);
+  const summary = [
+    dirs.length ? `${dirs.length} folder${dirs.length === 1 ? "" : "s"}` : "",
+    ...counts.map(([t, n]) => `${n} ${t === "video" ? "video" : t === "audio" ? "song" : "photo"}${n === 1 ? "" : "s"}`),
+    data.otherCount ? `${data.otherCount} other file${data.otherCount === 1 ? "" : "s"} hidden` : ""
+  ].filter(Boolean).join(" · ");
+  const firstPreferred = (i) => i === 0;
+  return `
+    <div class="page">
+      ${head}
+      <p class="lede lede--note">${esc(summary || "This folder has no videos, music, or photos.")}${data.truncated ? " · showing the first 1,500" : ""}</p>
+      ${dirs.length ? `<div class="grid grid--folders" data-zone="dirs">${dirs.map((d, i) => folderTile(d, "dir", { preferred: firstPreferred(i) })).join("")}</div>` : ""}
+      ${media.length ? `<div class="grid grid--files${dirs.length ? " grid--gap" : ""}" data-zone="media">${media.map((e, i) => fileTile(e, "files", { preferred: !dirs.length && i === 0, caption: [formatBytes(e.size), new Date(e.mtime * 1000).toLocaleDateString()].join(" · ") })).join("")}</div>` : ""}
+      ${!dirs.length && !media.length ? `<div class="actions"><button type="button" class="btn btn--primary" data-key="files-back" data-action="back" data-preferred="1">${icon("chevL")}<span>Back</span></button></div>` : ""}
+    </div>`;
+}
+
+/* ---------- Media player (files on this PC) ---------- */
+
+function currentEntry() {
+  const m = state.media;
+  return m ? m.list[m.index] : null;
+}
+
+function renderMedia() {
+  const m = state.media;
+  const entry = currentEntry();
+  if (!entry) return "";
+  const n = m.list.length;
+  const position = n > 1 ? ` · ${m.index + 1} of ${n}` : "";
+  const ctl = (key, action, ic, label, extra = "") => `<button type="button" class="ctl" data-key="${key}" data-action="${action}" aria-label="${esc(label)}" ${extra}>${icon(ic)}</button>`;
+  const prev = n > 1 ? ctl("media-prev", "media-prev", "prev", "Previous") : "";
+  const next = n > 1 ? ctl("media-next", "media-next", "next", "Next") : "";
+  const folder = folderOf(entry.path);
+  const art = artOf(["#10141c", `hsl(${hash(entry.name) % 360} 55% 50%)`], entry.path);
+
+  if (entry.type === "image") {
+    return `
+      <section class="player media media--photo osd-on" id="player" aria-label="Photo viewer">
+        <img class="photo-bg" src="${esc(fileUrl(entry.path))}" alt="" aria-hidden="true" />
+        <img class="photo" id="photo" src="${esc(fileUrl(entry.path))}" alt="${esc(entry.name)}" />
+        <div class="stage-scrim" aria-hidden="true"></div>
+        <div class="osd" id="osd">
+          <div class="osd-head">
+            <p class="kicker">Photo${esc(position)} · ${esc(folder)}</p>
+            <h1 class="display display--player">${esc(stripExt(entry.name))}</h1>
+          </div>
+          <div class="osd-row osd-row--photo">
+            <span class="time">${esc(formatBytes(entry.size))}</span>
+            <div class="controls">
+              ${prev}
+              <button type="button" class="ctl ctl--main" id="player-toggle" data-key="media-toggle" data-action="media-toggle" data-preferred="1" aria-label="Start slideshow">${icon("play")}</button>
+              ${next}
+              ${ctl("media-wall", "media-wall", "image", "Set as wallpaper")}
+            </div>
+            <span class="time time--end">${n > 1 ? "Left and right browse" : ""}</span>
+          </div>
+        </div>
+      </section>`;
+  }
+
+  const audio = entry.type === "audio";
+  const el = audio
+    ? `<audio id="mv" src="${esc(fileUrl(entry.path))}" autoplay preload="metadata"></audio>`
+    : `<video id="mv" class="mv" src="${esc(fileUrl(entry.path))}" autoplay playsinline preload="metadata"></video>`;
+  const nowPlaying = audio ? `
+    <div class="stage grain ${art.cls}" style="${art.style}" data-action="media-toggle"></div>
+    <div class="now-playing">
+      <span class="np-art ${art.cls}" style="${art.style}">${icon("music")}<span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+    </div>` : "";
+  return `
+    <section class="player media${audio ? " media--audio" : " media--video"}" id="player" aria-label="${audio ? "Music player" : "Video player"}">
+      ${nowPlaying}
+      ${el}
+      <div class="stage-scrim" aria-hidden="true"${audio ? "" : ' data-action="media-toggle"'}></div>
+      <div class="media-error" id="media-error" hidden></div>
+      <div class="osd" id="osd">
+        <div class="osd-head">
+          <p class="kicker">${audio ? "Music" : "Video"}${esc(position)} · ${esc(folder)}</p>
+          <h1 class="display display--player">${esc(stripExt(entry.name))}</h1>
+        </div>
+        <div class="scrub" id="scrub" tabindex="0" role="slider" data-key="player-scrub" data-action="media-toggle" aria-label="Playback position" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+          <span class="scrub-track"><span class="scrub-fill" id="scrub-fill"></span></span>
+          <span class="scrub-knob" id="scrub-knob"></span>
+          <span class="scrub-tip" id="scrub-tip">00:00</span>
+        </div>
+        <div class="osd-row">
+          <span class="time" id="t-cur">00:00</span>
+          <div class="controls">
+            ${prev}
+            ${ctl("media-back10", "media-seek", "back10", "Back 10 seconds", 'data-delta="-10"')}
+            <button type="button" class="ctl ctl--main" id="player-toggle" data-key="media-toggle" data-action="media-toggle" data-preferred="1" aria-label="Pause">${icon("pause")}</button>
+            ${ctl("media-fwd10", "media-seek", "fwd10", "Forward 10 seconds", 'data-delta="10"')}
+            ${next}
+          </div>
+          <span class="time time--end" id="t-left">--:--</span>
+        </div>
+      </div>
+    </section>`;
+}
+
 function renderBody() {
   const screens = {
+    files: renderFiles,
+    media: renderMedia,
     home: renderHome,
     apps: renderApps,
     list: renderList,
@@ -822,13 +1277,16 @@ function screenTitle() {
   const item = itemById(state.mediaId);
   if (item && (state.screen === "detail" || state.screen === "player")) return item.title;
   if (state.screen === "app") return (appById(state.appId) || {}).name || "App";
-  const names = { home: "Home", apps: "Apps", list: "My List", search: "Search", settings: "Settings" };
+  if (state.screen === "media" && currentEntry()) return currentEntry().name;
+  if (state.screen === "files" && state.path) return baseName(state.path);
+  const names = { home: "Home", apps: "Apps", list: "My List", search: "Search", settings: "Settings", files: "My PC" };
   return names[state.screen] || "Home";
 }
 
 function render(animate = true) {
   const root = document.getElementById("app");
-  const chrome = state.screen !== "player" && state.stack.length === 0;
+  const fullscreenScreen = state.screen === "player" || state.screen === "media";
+  const chrome = !fullscreenScreen && state.stack.length === 0;
   const prev = currentEl();
   if (prev) {
     const zone = prev.closest("[data-zone]");
@@ -837,7 +1295,7 @@ function render(animate = true) {
   document.body.dataset.screen = state.screen;
   document.body.classList.toggle("no-chrome", !chrome);
   document.body.classList.remove("in-rows", "scrolled");
-  const backPill = !chrome && state.screen !== "player"
+  const backPill = !chrome && !fullscreenScreen
     ? `<button type="button" class="back-pill glass" data-action="back" tabindex="-1" aria-label="Back">${icon("chevL")}<span>Back</span></button>`
     : "";
   const enter = animate && !motionReduced() ? " enter" : "";
@@ -847,6 +1305,7 @@ function render(animate = true) {
   restoreFocus();
   tickClock();
   if (state.screen === "player") updatePlayerUi();
+  if (state.screen === "media") wireMedia();
 }
 
 /* ---------- Backdrop and focus info ---------- */
@@ -912,7 +1371,7 @@ function focusContext(el) {
   document.body.classList.toggle("in-rows", inRows);
   const item = el.dataset.item ? itemById(el.dataset.item) : null;
   const app = el.dataset.app ? appById(el.dataset.app) : null;
-  if (state.screen !== "detail" && state.screen !== "player") {
+  if (state.screen !== "detail" && state.screen !== "player" && state.screen !== "media") {
     if (item) setBackdrop(item.id, item.colors);
     else if (app) setBackdrop(`app-${app.id}`, app.colors);
   }
@@ -966,10 +1425,17 @@ function restoreFocus() {
     });
     if (zoneEls.length) el = zoneEls[Math.max(0, Math.min(ui.hint.index, zoneEls.length - 1))];
   }
-  el = el || all.find((e) => e.dataset.preferred) || all[0];
+  const screen = document.getElementById("screen");
+  el = el
+    || all.find((e) => e.dataset.preferred)
+    || all.find((e) => screen && screen.contains(e))
+    || all.find((e) => e.getAttribute("aria-current") === "page")
+    || all[0];
   ui.hint = null;
   ui.instantScroll = true;
+  ui.restoring = true;
   if (el) focusEl(el);
+  ui.restoring = false;
   ui.instantScroll = false;
 }
 
@@ -1112,7 +1578,7 @@ function onFocusIn(event) {
   if (zone && zone.dataset.remember) memory[zone.dataset.zone] = el.dataset.key;
   scrollFor(el);
   focusContext(el);
-  if (el.dataset.action === "nav" && el.closest(".topbar") && ui.inputMode === "key") scheduleTab(el);
+  if (el.dataset.action === "nav" && el.closest(".topbar") && ui.inputMode === "key" && !ui.restoring) scheduleTab(el);
   if (el.dataset.action === "settings-tab") schedulePane(el.dataset.id);
 }
 
@@ -1143,7 +1609,9 @@ function snapshot() {
     appId: state.appId,
     mediaId: state.mediaId,
     query: state.query,
-    settingsTab: state.settingsTab
+    settingsTab: state.settingsTab,
+    path: state.path,
+    media: state.media
   };
 }
 
@@ -1170,6 +1638,7 @@ function openNav(id, keepFocus = false) {
   }
   state.screen = id;
   state.appId = null;
+  state.path = null;
   state.focusKey = keepFocus ? `nav-${id}` : null;
   render();
 }
@@ -1214,6 +1683,18 @@ function openPlayer(id, opts = {}) {
 function openApp(id) {
   const app = appById(id);
   if (!app) return;
+  if (app.mode === "web" || app.mode === "chrome") {
+    launchApp(app);
+    return;
+  }
+  if (app.mode === "files") {
+    pushScreen(() => {
+      state.screen = "files";
+      state.path = null;
+      state.focusKey = null;
+    });
+    return;
+  }
   pushScreen(() => {
     state.appId = id;
     state.focusKey = null;
@@ -1222,6 +1703,10 @@ function openApp(id) {
 }
 
 function leavePlayer() {
+  if (state.screen === "media") {
+    leaveMedia();
+    return;
+  }
   if (state.screen !== "player") return;
   state.playing = false;
   state.upNext = null;
@@ -1249,6 +1734,8 @@ function popScreen() {
   state.mediaId = prev.mediaId;
   state.query = prev.query;
   state.settingsTab = prev.settingsTab;
+  state.path = prev.path;
+  state.media = prev.media;
   render();
 }
 
@@ -1325,6 +1812,16 @@ function activate(el) {
       updateSearch();
       focusEl(focusables().find((e) => e.closest("#search-results") && e.dataset.item));
       break;
+    case "open-dir": openDir(el.dataset.path); break;
+    case "open-file": openFileFrom(el); break;
+    case "media-toggle": mediaToggle(); break;
+    case "media-seek": mediaSeek(Number(el.dataset.delta)); break;
+    case "media-prev": mediaStep(-1); break;
+    case "media-next": mediaStep(1); break;
+    case "media-wall": { const e = currentEntry(); if (e) setWallpaper(`file:${e.path}`); break; }
+    case "wall": chooseWallpaper(id); break;
+    case "source": openSourceMenu(); break;
+    case "refresh-apps": refreshApps(true); break;
     case "sheet": runSheet(Number(el.dataset.index)); break;
     case "sheet-close": closeOverlay(); break;
     case "back": back(); break;
@@ -1437,7 +1934,8 @@ function osdVisible() {
 
 function showOsd() {
   state.osdUntil = Date.now() + OSD_HIDE_MS;
-  updatePlayerUi();
+  if (state.screen === "media") updateMediaUi();
+  else updatePlayerUi();
 }
 
 function togglePlay() {
@@ -1583,6 +2081,10 @@ function onEnded() {
 }
 
 function tickPlayer() {
+  if (state.screen === "media") {
+    tickMedia();
+    return;
+  }
   if (state.screen !== "player") return;
   const now = Date.now();
   if (state.upNext) {
@@ -1698,7 +2200,7 @@ function startVoice() {
 function openSheet(sheet) {
   ui.sheetActions = sheet.actions;
   ui.sheetReturn = state.focusKey;
-  state.overlay = { kicker: sheet.kicker || "", title: sheet.title, body: sheet.body || "" };
+  state.overlay = { kicker: sheet.kicker || "", title: sheet.title, body: sheet.body || "", layout: sheet.layout || "sheet" };
   renderOverlay();
   focusEl(findKey("sheet-0"));
   if (state.screen === "player") updatePlayerUi();
@@ -1714,6 +2216,24 @@ function renderOverlay() {
   }
   const o = state.overlay;
   box.hidden = false;
+  box.dataset.layout = o.layout;
+  if (o.layout === "source") {
+    box.innerHTML = `
+      <div class="sheet-scrim" data-action="sheet-close"></div>
+      <div class="source-bar glass" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="source-head">${icon("input")}<h2 id="sheet-title">${esc(o.title)}</h2><span class="source-hint">${esc(o.body)}</span></div>
+        <div class="sources" data-zone="sources">
+          ${ui.sheetActions.map((a, i) => `
+            <button type="button" class="source-card${a.current ? " is-current" : ""}" data-key="sheet-${i}" data-action="sheet" data-index="${i}" aria-label="${esc(`${a.input}, ${a.label}${a.current ? ", current" : ""}`)}">
+              <span class="source-input">${esc(a.input)}</span>
+              <span class="source-ic">${icon(a.icon)}</span>
+              <span class="source-name">${esc(a.label)}</span>
+              <span class="source-desc">${esc(a.desc || "")}</span>
+            </button>`).join("")}
+        </div>
+      </div>`;
+    return;
+  }
   box.innerHTML = `
     <div class="sheet-scrim" data-action="sheet-close"></div>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -1747,6 +2267,7 @@ function runSheet(index) {
 
 function openMenuFor(el) {
   if (!el || state.screen === "player") return false;
+  if (el.dataset.ftype) return openFileMenu(el);
   const id = el.dataset.item;
   const item = id && itemById(id);
   if (!item) return false;
@@ -1761,6 +2282,654 @@ function openMenuFor(el) {
   if (resumable) actions.push({ label: "Remove from Continue watching", icon: "close", run: () => removeFromContinue(id) });
   openSheet({ kicker: `${kindLabel(item.kind)} · ${item.genre}`, title: item.title, actions });
   return true;
+}
+
+/* ---------- My PC: folders and files ---------- */
+
+function openDir(path) {
+  if (!path) return;
+  const dir = /^[A-Za-z]:$/.test(path) ? `${path}\\` : path;
+  delete ui.lists[dir];
+  pushScreen(() => {
+    state.screen = "files";
+    state.path = dir;
+    state.focusKey = null;
+  });
+}
+
+function entryFromEl(el) {
+  const set = fileSets[el.dataset.section] || [];
+  const path = el.dataset.path;
+  const entry = set.find((e) => e.path === path) || { path, name: baseName(path), type: el.dataset.ftype, size: 0 };
+  return { set, entry };
+}
+
+function openFileFrom(el, opts = {}) {
+  const { set, entry } = entryFromEl(el);
+  openFile(entry, set, opts);
+}
+
+function openFile(entry, set, opts = {}) {
+  if (!entry || !["video", "audio", "image"].includes(entry.type)) {
+    toast("Smart TV plays videos, music, and photos", "file");
+    return;
+  }
+  const list = (set && set.length ? set : [entry]).filter((e) => e.type === entry.type);
+  const index = Math.max(0, list.findIndex((e) => e.path === entry.path));
+  pushScreen(() => {
+    state.screen = "media";
+    state.media = { list, index, fromStart: !!opts.fromStart, slideshow: false };
+    state.focusKey = "media-toggle";
+  });
+}
+
+function parentDir(path) {
+  const dir = path.replace(/[\\/][^\\/]*$/, "");
+  return /^[A-Za-z]:$/.test(dir) ? `${dir}\\` : dir;
+}
+
+function openFileMenu(el) {
+  const { set, entry } = entryFromEl(el);
+  const prog = state.mediaProgress[entry.path];
+  const resumable = prog && prog.d && prog.t > 5 && prog.t < prog.d - 10;
+  const actions = [];
+  if (entry.type === "image") {
+    actions.push({ label: "View", icon: "image", run: () => openFile(entry, set) });
+    actions.push({ label: "Set as wallpaper", icon: "image", run: () => setWallpaper(`file:${entry.path}`) });
+  } else {
+    actions.push({ label: resumable ? `Resume at ${formatClock(prog.t)}` : "Play", icon: "play", run: () => openFile(entry, set) });
+    if (resumable) {
+      actions.push({ label: "Play from start", icon: "restart", run: () => openFile(entry, set, { fromStart: true }) });
+      actions.push({
+        label: "Remove from Continue on this PC",
+        icon: "close",
+        run: () => {
+          delete state.mediaProgress[entry.path];
+          save();
+          toast(`Removed ${stripExt(entry.name)}`, "close");
+          render(false);
+        }
+      });
+    }
+  }
+  const folder = parentDir(entry.path);
+  if (state.screen !== "files" || state.path !== folder) {
+    actions.push({ label: `Open folder · ${folderOf(entry.path) || folder}`, icon: "folder", run: () => openDir(folder) });
+  }
+  const kind = entry.type === "audio" ? "Music" : entry.type === "image" ? "Photo" : "Video";
+  openSheet({ kicker: [kind, formatBytes(entry.size)].filter(Boolean).join(" · "), title: stripExt(entry.name), actions });
+  return true;
+}
+
+/* ---------- Media player for files ---------- */
+
+function mediaEl() {
+  return document.getElementById("mv");
+}
+
+function wireMedia() {
+  const entry = currentEntry();
+  if (!entry) return;
+  clearTimeout(ui.slideTimer);
+  state.osdUntil = Date.now() + OSD_HIDE_MS;
+  if (entry.type === "image") {
+    state.playing = true;
+    if (state.media.slideshow) ui.slideTimer = setTimeout(() => mediaStep(1), 5000);
+    updateMediaUi();
+    return;
+  }
+  const el = mediaEl();
+  if (!el) return;
+  applyAppVolume();
+  state.playing = true;
+  el.addEventListener("loadedmetadata", () => {
+    const prog = state.mediaProgress[entry.path];
+    if (!state.media.fromStart && prog && prog.t > 5 && prog.t < el.duration - 10) {
+      el.currentTime = prog.t;
+      toast(`Resumed at ${formatClock(prog.t)}`, "play");
+    }
+    state.media.fromStart = false;
+    updateMediaUi();
+  });
+  el.addEventListener("play", () => { state.playing = true; updateMediaUi(); });
+  el.addEventListener("pause", () => { state.playing = false; saveMediaProgress(); updateMediaUi(); });
+  el.addEventListener("ended", onMediaEnded);
+  el.addEventListener("error", () => showMediaError(entry));
+  const started = el.play();
+  if (started && started.catch) started.catch(() => { state.playing = false; updateMediaUi(); });
+  updateMediaUi();
+}
+
+function showMediaError(entry) {
+  const box = document.getElementById("media-error");
+  state.playing = false;
+  if (box) {
+    box.innerHTML = `
+      <span class="empty-mark">${icon(entry.type === "audio" ? "music" : "film")}</span>
+      <h2>This ${esc(extOf(entry.name))} file won't play here</h2>
+      <p class="lede">The browser can't decode it. MP4 (H.264), WebM, MP3, M4A, FLAC, and WAV play best.</p>`;
+    box.hidden = false;
+  }
+  updateMediaUi();
+}
+
+function saveMediaProgress() {
+  const entry = currentEntry();
+  const el = mediaEl();
+  if (!entry || !el || entry.type === "image") return;
+  const d = el.duration;
+  if (!Number.isFinite(d) || d < 30) return;
+  const t = el.currentTime;
+  if (t > d - 10) delete state.mediaProgress[entry.path];
+  else if (t > 5) state.mediaProgress[entry.path] = { t, d, at: Date.now(), name: entry.name, type: entry.type, size: entry.size };
+  const keys = Object.keys(state.mediaProgress);
+  if (keys.length > 60) {
+    keys.sort((a, b) => state.mediaProgress[a].at - state.mediaProgress[b].at)
+      .slice(0, keys.length - 60)
+      .forEach((k) => delete state.mediaProgress[k]);
+  }
+  save();
+}
+
+function leaveMedia() {
+  saveMediaProgress();
+  const el = mediaEl();
+  if (el) el.pause();
+  clearTimeout(ui.slideTimer);
+  state.playing = false;
+}
+
+function updateMediaUi() {
+  const player = document.getElementById("player");
+  const entry = currentEntry();
+  if (!player || state.screen !== "media" || !entry) return;
+  player.classList.toggle("osd-on", osdVisible());
+  player.classList.toggle("is-paused", !state.playing);
+  const toggle = document.getElementById("player-toggle");
+  const setToggle = (mode, label) => {
+    if (toggle && toggle.dataset.mode !== mode) {
+      toggle.dataset.mode = mode;
+      toggle.innerHTML = icon(mode === "replay" ? "restart" : mode);
+      toggle.setAttribute("aria-label", label);
+    }
+  };
+  if (entry.type === "image") {
+    setToggle(state.media.slideshow ? "pause" : "play", state.media.slideshow ? "Stop slideshow" : "Start slideshow");
+    return;
+  }
+  const el = mediaEl();
+  if (!el) return;
+  const d = Number.isFinite(el.duration) ? el.duration : 0;
+  const t = el.currentTime || 0;
+  const pct = d ? `${((t / d) * 100).toFixed(2)}%` : "0%";
+  const fill = document.getElementById("scrub-fill");
+  const knob = document.getElementById("scrub-knob");
+  const tip = document.getElementById("scrub-tip");
+  if (fill) fill.style.width = pct;
+  if (knob) knob.style.left = pct;
+  if (tip) tip.style.left = pct;
+  setText("scrub-tip", formatClock(t));
+  setText("t-cur", formatClock(t));
+  setText("t-left", d ? `-${formatClock(d - t)}` : "--:--");
+  const scrub = document.getElementById("scrub");
+  if (scrub) {
+    scrub.setAttribute("aria-valuemax", String(Math.round(d)));
+    scrub.setAttribute("aria-valuenow", String(Math.round(t)));
+    scrub.setAttribute("aria-valuetext", `${formatClock(t)} of ${formatClock(d)}`);
+  }
+  if (el.ended) setToggle("replay", "Replay");
+  else if (el.paused) setToggle("play", "Play");
+  else setToggle("pause", "Pause");
+}
+
+function tickMedia() {
+  const now = Date.now();
+  if (state.playing && now - ui.mediaSaveAt > 5000) {
+    ui.mediaSaveAt = now;
+    saveMediaProgress();
+  }
+  updateMediaUi();
+}
+
+function mediaToggle() {
+  const entry = currentEntry();
+  if (!entry) return;
+  if (entry.type === "image") {
+    state.media.slideshow = !state.media.slideshow;
+    clearTimeout(ui.slideTimer);
+    if (state.media.slideshow) ui.slideTimer = setTimeout(() => mediaStep(1), 5000);
+    toast(state.media.slideshow ? "Slideshow on · a new photo every 5 seconds" : "Slideshow off", "image");
+    showOsd();
+    return;
+  }
+  const el = mediaEl();
+  if (!el) return;
+  if (el.ended) el.currentTime = 0;
+  if (el.paused) el.play().catch(() => {});
+  else el.pause();
+  showOsd();
+}
+
+function mediaSeek(delta) {
+  const el = mediaEl();
+  if (!el || !Number.isFinite(el.duration)) return;
+  el.currentTime = Math.min(el.duration, Math.max(0, el.currentTime + delta));
+  showOsd();
+}
+
+function mediaStep(dir) {
+  const m = state.media;
+  if (!m || m.list.length < 2) return;
+  saveMediaProgress();
+  state.media = { ...m, index: mod(m.index + dir, m.list.length), fromStart: false };
+  render(false);
+}
+
+function onMediaEnded() {
+  state.playing = false;
+  saveMediaProgress();
+  const m = state.media;
+  if (state.prefs.autoplayNext && m && m.index < m.list.length - 1) {
+    toast(`Next: ${stripExt(m.list[m.index + 1].name)}`, "next");
+    setTimeout(() => {
+      if (state.screen === "media" && state.media === m) mediaStep(1);
+    }, 1500);
+  } else {
+    showOsd();
+  }
+}
+
+function mediaCommand(cmd) {
+  const entry = currentEntry();
+  if (!entry) return false;
+  const image = entry.type === "image";
+  if (cmd === "playpause" || cmd === "play" || cmd === "pause") {
+    mediaToggle();
+    return true;
+  }
+  if (cmd === "ff" || cmd === "rw") {
+    if (image) mediaStep(cmd === "ff" ? 1 : -1);
+    else mediaSeek(cmd === "ff" ? 10 : -10);
+    return true;
+  }
+  if (!osdVisible()) {
+    if (cmd === "ok") { mediaToggle(); return true; }
+    if (cmd === "left" || cmd === "right") {
+      if (image) mediaStep(cmd === "right" ? 1 : -1);
+      else mediaSeek(cmd === "right" ? 10 : -10);
+      return true;
+    }
+    if (cmd === "up" || cmd === "down") { showOsd(); return true; }
+    return false;
+  }
+  showOsd();
+  if ((cmd === "left" || cmd === "right") && state.focusKey === "player-scrub") {
+    mediaSeek(cmd === "right" ? 10 : -10);
+    return true;
+  }
+  return false;
+}
+
+/* ---------- Wallpaper ---------- */
+
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("smarttv-wallpaper", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("files");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbGet(key) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("files").objectStore("files").get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbPut(key, value) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+let wallObjectUrl = "";
+
+async function wallpaperUrl() {
+  const wp = state.prefs.wallpaper || "desktop";
+  if (wp === "art") return "";
+  if (wp === "custom") {
+    try {
+      const blob = await idbGet("wallpaper");
+      if (!blob) return "";
+      if (wallObjectUrl) URL.revokeObjectURL(wallObjectUrl);
+      wallObjectUrl = URL.createObjectURL(blob);
+      return wallObjectUrl;
+    } catch {
+      return "";
+    }
+  }
+  if (wp.startsWith("file:")) return server.ok ? fileUrl(wp.slice(5)) : "";
+  return server.ok && server.wallpaper ? withKey(`/api/wallpaper?t=${Date.now()}`) : "";
+}
+
+async function applyWallpaper() {
+  const url = await wallpaperUrl();
+  const wall = document.getElementById("bd-wall");
+  if (!wall) return;
+  const clear = () => {
+    ui.wallUrl = "";
+    wall.style.backgroundImage = "";
+    document.body.classList.remove("has-wall");
+  };
+  if (!url) {
+    clear();
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    ui.wallUrl = url;
+    wall.style.backgroundImage = `url("${url}")`;
+    document.body.classList.add("has-wall");
+    if (state.screen === "settings" && state.settingsTab === "wallpaper") refreshPane();
+  };
+  img.onerror = clear;
+  img.src = url;
+}
+
+function setWallpaper(value) {
+  state.prefs.wallpaper = value;
+  save();
+  applyWallpaper();
+  const names = { desktop: "Desktop wallpaper on", custom: "Your picture is the wallpaper", art: "Wallpaper off · artwork follows focus" };
+  toast(names[value] || "Photo set as wallpaper", "image");
+  if (state.screen === "settings") refreshPane();
+}
+
+function chooseWallpaper(id) {
+  if (id === "custom") {
+    pickWallpaperFile();
+    return;
+  }
+  if (id === "file") return;
+  if (id === "desktop" && !server.wallpaper) {
+    toast("Start the companion (py server.py) to use your desktop wallpaper", "pc");
+    return;
+  }
+  setWallpaper(id);
+}
+
+function pickWallpaperFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      await idbPut("wallpaper", file);
+      setWallpaper("custom");
+    } catch {
+      toast("This browser could not keep the picture", "close");
+    }
+  });
+  input.click();
+}
+
+/* ---------- Volume ---------- */
+
+function applyAppVolume() {
+  const el = mediaEl();
+  if (!el) return;
+  el.volume = server.volume ? 1 : Math.max(0, Math.min(1, state.prefs.appVolume));
+  el.muted = !server.volume && ui.volume.muted;
+}
+
+function showVolume(label) {
+  const box = document.getElementById("volume");
+  if (!box) return;
+  const v = ui.volume;
+  const pct = Math.round(v.level * 100);
+  const ic = !v.known ? "volume" : v.muted || pct === 0 ? "mute" : pct < 50 ? "volumeLow" : "volume";
+  const level = v.known && !v.muted ? pct : 0;
+  box.innerHTML = `
+    <span class="vol-num">${v.known ? (v.muted ? "Mute" : pct) : ""}</span>
+    <span class="vol-track${v.known ? "" : " is-unknown"}"><span class="vol-fill" style="height:${level}%"></span></span>
+    <span class="vol-ic">${icon(ic)}</span>
+    <span class="vol-label">${esc(label)}</span>`;
+  box.setAttribute("aria-label", v.known ? `${label} ${v.muted ? "muted" : `${pct} percent`}` : label);
+  box.hidden = false;
+  requestAnimationFrame(() => box.classList.add("is-on"));
+  clearTimeout(ui.volTimer);
+  ui.volTimer = setTimeout(() => {
+    box.classList.remove("is-on");
+    setTimeout(() => { if (!box.classList.contains("is-on")) box.hidden = true; }, 400);
+  }, 2200);
+}
+
+async function refreshVolume(show) {
+  if (!server.volume) return;
+  try {
+    const v = await api("/api/volume");
+    const before = ui.volume;
+    const changed = before.known && (Math.abs(v.level - before.level) > 0.004 || v.muted !== before.muted);
+    ui.volume = { level: v.level, muted: v.muted, known: true };
+    if (show || changed) showVolume("PC volume");
+  } catch {
+    /* the companion went away */
+  }
+}
+
+async function changeVolume(cmd) {
+  if (server.volume) {
+    if (ui.volBusy) return;
+    ui.volBusy = true;
+    try {
+      const body = cmd === "mute" ? { mute: !ui.volume.muted } : { delta: cmd === "volup" ? 0.02 : -0.02 };
+      const v = await api("/api/volume", body);
+      ui.volume = { level: v.level, muted: v.muted, known: true };
+      showVolume("PC volume");
+    } catch (err) {
+      toast(err.message, "volume");
+    } finally {
+      ui.volBusy = false;
+    }
+    return;
+  }
+  if (cmd === "mute") ui.volume.muted = !ui.volume.muted;
+  else {
+    state.prefs.appVolume = Math.max(0, Math.min(1, state.prefs.appVolume + (cmd === "volup" ? 0.05 : -0.05)));
+    ui.volume.muted = false;
+  }
+  ui.volume.level = state.prefs.appVolume;
+  ui.volume.known = true;
+  save();
+  applyAppVolume();
+  showVolume("TV volume");
+}
+
+// The keyboard's own volume keys: Windows changes the volume itself, so read it back and show it.
+function hardwareVolume(cmd) {
+  if (server.volume) {
+    setTimeout(() => refreshVolume(true), 140);
+    return;
+  }
+  const was = ui.volume.known;
+  ui.volume.known = false;
+  showVolume(cmd === "hwmute" ? "System volume · mute" : cmd === "hwvolup" ? "System volume up" : "System volume down");
+  ui.volume.known = was;
+}
+
+/* ---------- Apps, sources, and the signal screen ---------- */
+
+function showSignal(input, name, sub, app) {
+  const box = document.getElementById("signal");
+  if (!box) return;
+  const face = app
+    ? `<span class="sig-app" style="--a:${app.colors[0]};--b:${app.colors[1]}">${app.iconSrc ? `<img src="${esc(app.iconSrc)}" alt="" />` : `<span class="app-word app-word--${app.word || "plain"}">${esc(app.name)}</span>`}</span>`
+    : "";
+  box.innerHTML = `
+    <div class="sig-noise"></div>
+    <div class="sig-label"><span class="sig-input">${esc(input)}</span><span class="sig-name">${esc(name)}</span></div>
+    <div class="sig-center">${face}<span class="sig-sub" id="sig-sub">${esc(sub)}</span><span class="sig-note" id="sig-note"></span></div>`;
+  box.classList.toggle("is-app", !!app);
+  clearTimeout(ui.signalTimer);
+  box.hidden = false;
+  requestAnimationFrame(() => box.classList.add("is-on"));
+}
+
+function setSignalText(sub, note) {
+  setText("sig-sub", sub);
+  setText("sig-note", note || "");
+}
+
+function hideSignal(delay) {
+  const box = document.getElementById("signal");
+  if (!box) return;
+  clearTimeout(ui.signalTimer);
+  ui.signalTimer = setTimeout(() => {
+    box.classList.remove("is-on");
+    setTimeout(() => { if (!box.classList.contains("is-on")) box.hidden = true; }, 600);
+  }, delay);
+}
+
+function launchApp(app) {
+  if (!server.canLaunch && !app.url) {
+    toast(`Open ${app.name} from the PC running Smart TV`, "pc");
+    return;
+  }
+  ui.wasFullscreen = !!document.fullscreenElement;
+  showSignal("App", app.name, `Opening ${app.name}…`, app);
+  setTimeout(async () => {
+    try {
+      if (server.canLaunch) {
+        if (app.chromeId) await api("/api/launch", { id: app.chromeId });
+        else await api("/api/open-url", { url: app.url });
+        ui.away = true;
+        setSignalText(`${app.name} is open`, app.chromeId ? "Close its window to come back here" : "Alt+F4 closes it and brings you back");
+        hideSignal(2600);
+      } else {
+        const win = window.open(app.url, "_blank");
+        if (win) {
+          win.opener = null;
+          ui.away = true;
+        } else {
+          toast("Allow pop-ups for this page so apps can open", "close");
+        }
+        hideSignal(300);
+      }
+    } catch (err) {
+      toast(err.message, "close");
+      hideSignal(0);
+    }
+  }, 650);
+}
+
+function openSourceMenu() {
+  if (state.overlay) closeOverlay(false);
+  openSheet({
+    layout: "source",
+    title: "Source",
+    body: "Left and right choose · OK switches · Back closes",
+    actions: [
+      { input: "HDMI 1", label: "Smart TV", icon: "tv", desc: "You're here", current: true, run: () => switchSource("tv") },
+      { input: "HDMI 2", label: "Browser", icon: "globe", desc: server.canLaunch ? "A new Chrome window" : "Leaves full screen and opens a tab", run: () => switchSource("browser") },
+      { input: "HDMI 3", label: "Desktop", icon: "desktop", desc: server.canLaunch ? "The Windows desktop" : "Needs the companion", run: () => switchSource("desktop") }
+    ]
+  });
+  focusEl(findKey("sheet-1"));
+}
+
+function switchSource(target) {
+  const names = { tv: ["HDMI 1", "Smart TV"], browser: ["HDMI 2", "Browser"], desktop: ["HDMI 3", "Desktop"] };
+  const [input, name] = names[target];
+  if (target === "tv") {
+    showSignal(input, name, "Connected");
+    hideSignal(900);
+    return;
+  }
+  if (target === "desktop" && !server.canLaunch) {
+    toast("Start the companion (py server.py) to switch to the desktop", "desktop");
+    return;
+  }
+  ui.wasFullscreen = !!document.fullscreenElement;
+  showSignal(input, name, "Switching source…");
+  setTimeout(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    try {
+      if (server.canLaunch) await api("/api/source", { target });
+      else {
+        const win = window.open("https://www.google.com/", "_blank");
+        if (win) win.opener = null;
+      }
+      ui.away = true;
+      setSignalText(`Now showing ${name}`, "Come back to this window any time. Smart TV is on HDMI 1");
+      hideSignal(2400);
+    } catch (err) {
+      toast(err.message, "close");
+      hideSignal(0);
+    }
+  }, 900);
+}
+
+function onReturn() {
+  if (!ui.away || document.hidden) return;
+  ui.away = false;
+  showSignal("HDMI 1", "Smart TV", "Connected");
+  hideSignal(1100);
+  if (state.screen === "media" || state.screen === "player") showOsd();
+  if (ui.wasFullscreen && !document.fullscreenElement) {
+    ui.refullscreen = true;
+    setTimeout(() => toast("Press OK to go back to full screen", "tv"), 900);
+  }
+  refreshVolume(false);
+}
+
+/* ---------- Companion connection ---------- */
+
+async function refreshApps(force) {
+  if (!server.ok) return;
+  try {
+    const data = await api(`/api/apps${force ? "?refresh=1" : ""}`);
+    ui.chromeApps = Array.isArray(data.apps) ? data.apps : [];
+    if (force) {
+      toast(`Found ${ui.chromeApps.length} Chrome shortcut${ui.chromeApps.length === 1 ? "" : "s"}`, "refresh");
+      render(false);
+    }
+  } catch (err) {
+    if (force) toast(err.message, "close");
+  }
+}
+
+async function loadLibrary() {
+  try {
+    ui.library = await api("/api/library");
+  } catch {
+    ui.library = null;
+  }
+}
+
+async function connectCompanion() {
+  if (!location.protocol.startsWith("http")) return;
+  try {
+    const status = await api("/api/status");
+    server.ok = !!status.ok;
+    server.canLaunch = !!status.canLaunch;
+    server.volume = !!status.volume;
+    server.wallpaper = !!status.wallpaper;
+  } catch {
+    return;
+  }
+  await Promise.allSettled([refreshApps(false), loadLibrary(), refreshVolume(false)]);
+  applyWallpaper();
+  if (["home", "apps", "settings", "files"].includes(state.screen)) render(false);
 }
 
 /* ---------- Toasts, sound, ambient ---------- */
@@ -1811,7 +2980,7 @@ function markActivity() {
   clearTimeout(ui.idleTimer);
   if (!state.prefs.ambient) return;
   ui.idleTimer = setTimeout(() => {
-    if ((state.screen === "player" && state.playing) || state.overlay) {
+    if (((state.screen === "player" || state.screen === "media") && state.playing) || state.overlay) {
       markActivity();
       return;
     }
@@ -1903,11 +3072,25 @@ const KEY_COMMANDS = {
   MediaTrackNext: "ff",
   MediaTrackPrevious: "rw",
   BrowserHome: "home",
-  GoHome: "home"
+  GoHome: "home",
+  AudioVolumeUp: "hwvolup",
+  AudioVolumeDown: "hwvoldown",
+  AudioVolumeMute: "hwmute",
+  VolumeUp: "hwvolup",
+  VolumeDown: "hwvoldown",
+  VolumeMute: "hwmute",
+  TVInput: "source",
+  "+": "volup",
+  "=": "volup",
+  "-": "voldown"
 };
 
 // LG webOS and Samsung Tizen remotes report these key codes.
-const KEYCODE_COMMANDS = { 461: "back", 10009: "back", 415: "play", 19: "pause", 413: "pause", 417: "ff", 412: "rw", 10252: "playpause" };
+const KEYCODE_COMMANDS = {
+  461: "back", 10009: "back", 415: "play", 19: "pause", 413: "pause", 417: "ff", 412: "rw", 10252: "playpause",
+  447: "volup", 448: "voldown", 449: "mute", 10072: "source",
+  175: "hwvolup", 174: "hwvoldown", 173: "hwmute"
+};
 
 function commandFor(event) {
   return KEY_COMMANDS[event.key] || KEYCODE_COMMANDS[event.keyCode] || null;
@@ -1916,12 +3099,32 @@ function commandFor(event) {
 function dispatch(cmd, target) {
   ui.lastInput = Date.now();
   markActivity();
+  if (/^(hw)?vol|mute$/.test(cmd)) {
+    if (cmd.startsWith("hw")) hardwareVolume(cmd);
+    else changeVolume(cmd);
+    return;
+  }
   if (ambientVisible()) {
     hideAmbient();
     return;
   }
   if (state.screen === "player" && !state.overlay && playerCommand(cmd)) return;
+  if (state.screen === "media" && !state.overlay && mediaCommand(cmd)) return;
   switch (cmd) {
+    case "volup":
+    case "voldown":
+    case "mute":
+      changeVolume(cmd);
+      break;
+    case "hwvolup":
+    case "hwvoldown":
+    case "hwmute":
+      hardwareVolume(cmd);
+      break;
+    case "source":
+      if (state.overlay && state.overlay.layout === "source") closeOverlay();
+      else openSourceMenu();
+      break;
     case "up":
     case "down":
     case "left":
@@ -1954,7 +3157,7 @@ function dispatch(cmd, target) {
 }
 
 function pressStart() {
-  if (state.screen === "player" && !state.overlay && !osdVisible()) {
+  if ((state.screen === "player" || state.screen === "media") && !state.overlay && !osdVisible()) {
     dispatch("ok");
     return;
   }
@@ -2014,6 +3217,8 @@ function hotkey(event) {
   const key = event.key.toLowerCase();
   if (key === "f") toggleFull();
   else if (key === "m") dispatch("menu");
+  else if (key === "i") dispatch("source");
+  else if (key === "0") dispatch("mute");
   else if (key === "/") { event.preventDefault(); openNav("search"); }
   else if (state.screen === "player" && key === "k") dispatch("playpause");
   else if (state.screen === "player" && key === "j") dispatch("rw");
@@ -2022,6 +3227,14 @@ function hotkey(event) {
 
 function onKeyDown(event) {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (ui.refullscreen && !document.fullscreenElement && !event.key.startsWith("Audio")) {
+    ui.refullscreen = false;
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    if (commandFor(event) === "ok") {
+      event.preventDefault();
+      return;
+    }
+  }
   ui.inputMode = "key";
   ui.lastInput = Date.now();
   markActivity();
@@ -2034,6 +3247,11 @@ function onKeyDown(event) {
   const cmd = commandFor(event);
   if (!cmd) {
     hotkey(event);
+    return;
+  }
+  if (cmd.startsWith("hw")) {
+    // Let Windows change the volume as usual; just show it.
+    if (!event.repeat || server.volume) dispatch(cmd);
     return;
   }
   event.preventDefault();
@@ -2136,6 +3354,8 @@ function pollPads() {
     back: btn(1),
     menu: btn(3),
     playpause: btn(2),
+    voldown: btn(4),
+    volup: btn(5),
     home: btn(9) || btn(16)
   };
   for (const [cmd, down] of Object.entries(inputs)) {
@@ -2176,6 +3396,12 @@ function renderRemote() {
         ${b("home", "Home", icon("home"))}
         ${b("menu", "Options", icon("dots"))}
         ${b("playpause", "Play or pause", icon("playpause"))}
+      </div>
+      <div class="remote-row">
+        ${b("voldown", "Volume down", icon("volDown"))}
+        ${b("mute", "Mute", icon("mute"))}
+        ${b("volup", "Volume up", icon("volUp"))}
+        ${b("source", "Source", icon("input"))}
       </div>
     </div>
     <button type="button" tabindex="-1" class="remote-fab glass" data-cmd="toggle-remote" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} on-screen remote">${icon(open ? "close" : "remote")}</button>`;
@@ -2220,6 +3446,12 @@ function init() {
     }
   }, true);
   window.addEventListener("blur", cancelPress);
+  window.addEventListener("focus", onReturn);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) onReturn(); });
+  ui.volume = { level: state.prefs.appVolume, muted: false, known: false };
+  setInterval(() => {
+    if (server.volume && document.fullscreenElement && !document.hidden) refreshVolume(false);
+  }, 900);
   window.addEventListener("popstate", onPopState);
   window.addEventListener("gamepadconnected", () => {
     if (!ui.gpRaf) ui.gpRaf = requestAnimationFrame(pollPads);
@@ -2249,6 +3481,8 @@ function init() {
   setInterval(tickPlayer, 250);
   markActivity();
   render();
+  applyWallpaper();
+  connectCompanion();
 
   if (!state.prefs.seenTips) {
     setTimeout(() => toast("Tip: hold OK, or press M, for options on any title", "info"), 1600);

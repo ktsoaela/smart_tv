@@ -6,12 +6,14 @@
   <meta name="color-scheme" content="dark" />
   <meta name="theme-color" content="#07080b" />
   <title>Smart TV</title>
-  <meta name="description" content="A TV launcher you drive with a remote: immersive home rows, apps, a list, search, and a preview player." />
+  <meta name="description" content="A TV launcher you drive with a remote: streaming apps, your Chrome shortcuts, files and media from this PC, and a TV-style source switcher." />
   <link rel="icon" href="assets/logo.svg" />
   <link rel="stylesheet" href="css/tv.css" />
+  <link rel="stylesheet" href="css/media.css" />
 </head>
 <body data-screen="home">
   <div class="backdrop" aria-hidden="true">
+    <div id="bd-wall" class="bd-wall"></div>
     <div class="bd-layer grain"></div>
     <div class="bd-layer grain"></div>
     <div class="bd-scrim"></div>
@@ -21,6 +23,8 @@
   <div id="overlay" class="overlay" hidden></div>
   <div id="remote" class="remote"></div>
   <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <div id="volume" class="volume" role="status" hidden></div>
+  <div id="signal" class="signal" hidden aria-live="polite"></div>
   <div id="ambient" class="ambient" hidden aria-hidden="true"></div>
   <noscript>Smart TV needs JavaScript to draw the launcher.</noscript>
   <script src="js/tv.js"></script>
