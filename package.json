@@ -1,0 +1,41 @@
+{
+  "name": "smart-tv",
+  "productName": "Smart TV",
+  "version": "13.0.0",
+  "description": "A full-screen TV home for Windows: streaming apps, Chrome shortcuts, PC programs, media from this PC, and a remote-first UI.",
+  "main": "electron/main.js",
+  "author": "Khotso Tsoaela",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --windowed",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.ktsoaela.smarttv",
+    "productName": "Smart TV",
+    "files": [
+      "electron/**",
+      "index.html",
+      "css/**",
+      "js/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Smart TV"
+    }
+  }
+}

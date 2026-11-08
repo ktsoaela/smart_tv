@@ -14,6 +14,8 @@
 
 **Author:** [Khotso Tsoaela](https://github.com/ktsoaela) (`@ktsoaela`)
 
+The public page is [ktsoaela.github.io/smart_tv](https://ktsoaela.github.io/smart_tv/).
+
 ---
 
 **Smart TV** puts a 10-foot home screen in a browser: immersive rows, apps, search, a list, and a one-minute preview. Arrow keys, a gamepad, a TV remote, or the pad in the corner move the focus.
@@ -36,6 +38,19 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 - **Is yours to arrange.** Add websites and PC programs as apps; move, rename, hide, or remove any app; keep titles, links, and files in My List in your own order.
 - **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather for this computer's location, and a wallpaper.
 - **Keeps your list,** progress, and settings in this browser.
+
+---
+
+## Windows app (Electron)
+
+On the `electron` branch, Smart TV is also a Windows app that takes over the PC like an Android TV box: full screen, optional start with Windows, and streaming in a Chrome kiosk window that the remote's Back closes.
+
+```bash
+npm install
+npm start
+```
+
+See [docs/electron.md](docs/electron.md).
 
 ---
 
@@ -62,6 +77,8 @@ That starts the companion on `http://localhost:8787` and opens it. The companion
 | Path | Purpose |
 | --- | --- |
 | `index.html` | Launcher page |
+| `electron/` | Windows app: kiosk window, API, volume, Chrome launching |
+| `package.json` | Electron scripts and installer settings |
 | `server.py` | Companion: files and streaming, Chrome shortcuts, wallpaper, system volume, sources |
 | `css/tv.css` | 10-foot layout, glass materials, focus motion |
 | `css/media.css` | Media player, My PC, wallpaper, volume panel, source bar |
@@ -76,6 +93,8 @@ That starts the companion on `http://localhost:8787` and opens it. The companion
 
 | Doc | Purpose |
 | --- | --- |
+| [docs/electron.md](docs/electron.md) | The Windows app: running it, TV mode, streaming, remotes |
+| [docs/index.html](docs/index.html) | The public page |
 | [docs/guide.md](docs/guide.md) | Run it, drive it, and put Google TV on a television |
 
 ---

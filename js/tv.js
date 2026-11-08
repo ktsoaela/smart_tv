@@ -90,6 +90,7 @@ const NAV = [
 
 const SETTINGS_TABS = [
   { id: "home", label: "Home screen" },
+  { id: "tv", label: "TV mode" },
   { id: "display", label: "Display & motion" },
   { id: "wallpaper", label: "Wallpaper" },
   { id: "weather", label: "Weather & time" },
@@ -117,7 +118,9 @@ const DEFAULT_PREFS = {
   customApps: [],
   hiddenApps: [],
   appOrder: [],
-  appNames: {}
+  appNames: {},
+  appZoom: {},
+  appLayout: {}
 };
 
 // The companion (server.py) unlocks files, Chrome shortcuts, wallpaper, system volume, and sources.
@@ -126,8 +129,14 @@ const server = {
   canLaunch: false,
   volume: false,
   wallpaper: false,
+  electron: !!(window.tvHost && window.tvHost.electron),
   key: new URLSearchParams(location.search).get("key") || ""
 };
+
+// Speech recognition needs Google's servers, which Electron doesn't have keys for.
+function voiceSearchAvailable() {
+  return !!SpeechRec && !server.electron;
+}
 
 const state = {
   screen: "home",
@@ -145,6 +154,9 @@ const state = {
   path: null,
   media: null,
   myList: [],
+  pageHistory: [],
+  profiles: [],
+  profileId: "guest",
   setupStep: 0,
   list: new Set(),
   prefs: { ...DEFAULT_PREFS },
@@ -200,6 +212,7 @@ const ui = {
   mediaSaveAt: 0,
   wallUrl: "",
   signalTimer: 0,
+  zoomTimer: 0,
   weather: null,
   weatherError: "",
   weatherBusy: false,
@@ -254,6 +267,7 @@ const ICONS = {
   volUp: '<path d="M5 12h14M12 5v14"/>',
   volDown: '<path d="M5 12h14"/>',
   input: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/><path d="M9 10.5h6M12.5 8l2.5 2.5-2.5 2.5"/>',
+  user: '<circle cx="12" cy="8.2" r="3.2"/><path d="M5.2 19.4a6.8 6.8 0 0 1 13.6 0"/>',
   pc: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>',
   folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
   file: '<path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z"/><path d="M13.5 3.5V8h4.5"/>',
@@ -337,8 +351,9 @@ function chromeOnlyApps() {
     fullName: c.name,
     mode: "chrome",
     chromeId: c.id,
+    url: c.url || "",
     iconSrc: c.hasIcon ? iconUrl(c.id) : "",
-    blurb: `Your ${c.browser} shortcut. Opens in its own window.`,
+    blurb: `Your ${c.browser} shortcut.`,
     colors: [`hsl(${hash(c.id) % 360} 35% 14%)`, `hsl(${hash(c.id) % 360} 55% 42%)`]
   }));
 }
@@ -558,6 +573,75 @@ function nextItem(item) {
 
 /* ---------- Storage ---------- */
 
+const PROFILE_COLORS = [
+  ["#d2b4ff", "#8eb4ff"],
+  ["#ffb4c8", "#ff8e8e"],
+  ["#ffe08a", "#ff9f5a"],
+  ["#9eefc6", "#5ec8d8"],
+  ["#c8d4ff", "#7a8cff"]
+];
+
+function profileLetter(name) {
+  const ch = String(name || "").trim().charAt(0);
+  return (ch || "G").toUpperCase();
+}
+
+function currentProfile() {
+  return state.profiles.find((person) => person.id === state.profileId) || state.profiles[0] || null;
+}
+
+function readWatching(source) {
+  const savedList = source && Array.isArray(source.myList) ? source.myList
+    : source && Array.isArray(source.list) ? source.list.map((id) => ({ kind: "title", id })) : [];
+  return {
+    progress: source && source.progress && typeof source.progress === "object" ? source.progress : { ...SAMPLE_PROGRESS },
+    watchedAt: source && source.watchedAt && typeof source.watchedAt === "object" ? source.watchedAt : {},
+    mediaProgress: source && source.mediaProgress && typeof source.mediaProgress === "object" ? source.mediaProgress : {},
+    pageHistory: Array.isArray(source && source.pageHistory) ? source.pageHistory.filter(validPage).slice(0, 12) : [],
+    myList: savedList.filter(validListEntry)
+  };
+}
+
+function normalizeProfile(raw, index) {
+  if (!raw || typeof raw !== "object") return null;
+  const name = String(raw.name || "").replace(/\s+/g, " ").trim().slice(0, 24);
+  if (!name) return null;
+  const id = typeof raw.id === "string" && raw.id ? raw.id : `u${index}`;
+  const color = Number.isInteger(raw.color) ? Math.abs(raw.color) % PROFILE_COLORS.length : index % PROFILE_COLORS.length;
+  return { id, name, color, ...readWatching(raw) };
+}
+
+function useProfile(person) {
+  state.profileId = person.id;
+  state.progress = { ...person.progress };
+  state.watchedAt = { ...person.watchedAt };
+  state.mediaProgress = { ...person.mediaProgress };
+  state.pageHistory = person.pageHistory.slice();
+  state.myList = person.myList.map((entry) => ({ ...entry }));
+  syncList();
+}
+
+function packProfiles() {
+  return state.profiles.map((person) => {
+    if (person.id !== state.profileId) return person;
+    return {
+      ...person,
+      progress: state.progress,
+      watchedAt: state.watchedAt,
+      mediaProgress: state.mediaProgress,
+      pageHistory: state.pageHistory,
+      myList: state.myList
+    };
+  });
+}
+
+function avatarHtml() {
+  const person = currentProfile();
+  const name = person ? person.name : "Guest";
+  const colors = PROFILE_COLORS[person ? person.color : 0];
+  return `<button type="button" class="avatar" data-key="top-profile" data-action="profile" aria-label="${esc(`Profile, ${name}`)}" style="--a:${colors[0]};--b:${colors[1]}">${esc(profileLetter(name))}</button>`;
+}
+
 function load() {
   let saved = null;
   try {
@@ -565,18 +649,15 @@ function load() {
   } catch {
     saved = null;
   }
-  state.progress = saved && saved.progress && typeof saved.progress === "object" ? saved.progress : { ...SAMPLE_PROGRESS };
-  state.watchedAt = saved && saved.watchedAt && typeof saved.watchedAt === "object" ? saved.watchedAt : {};
-  state.mediaProgress = saved && saved.mediaProgress && typeof saved.mediaProgress === "object" ? saved.mediaProgress : {};
-  const savedList = saved && Array.isArray(saved.myList) ? saved.myList
-    : saved && Array.isArray(saved.list) ? saved.list.map((id) => ({ kind: "title", id })) : [];
-  state.myList = savedList.filter(validListEntry);
-  syncList();
+  let people = Array.isArray(saved && saved.profiles) ? saved.profiles.map(normalizeProfile).filter(Boolean).slice(0, 6) : [];
+  if (!people.length) people = [normalizeProfile({ id: "guest", name: "Guest", color: 0, ...readWatching(saved) }, 0)];
+  state.profiles = people;
+  useProfile(people.find((person) => person.id === (saved && saved.activeProfile)) || people[0]);
   state.prefs = { ...DEFAULT_PREFS, ...(saved && saved.prefs ? saved.prefs : {}) };
   const p = state.prefs;
   p.weather = { ...DEFAULT_PREFS.weather, ...(p.weather || {}) };
   for (const key of ["customApps", "hiddenApps", "appOrder"]) if (!Array.isArray(p[key])) p[key] = [];
-  if (!p.appNames || typeof p.appNames !== "object") p.appNames = {};
+  for (const key of ["appNames", "appZoom", "appLayout"]) if (!p[key] || typeof p[key] !== "object") p[key] = {};
   if (!["busy", "minimal"].includes(p.homeStyle)) p.homeStyle = "busy";
 }
 
@@ -594,11 +675,17 @@ function syncList() {
 
 function save() {
   try {
+    const profiles = packProfiles();
+    state.profiles = profiles;
+    const active = profiles.find((person) => person.id === state.profileId) || profiles[0];
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      progress: state.progress,
-      watchedAt: state.watchedAt,
-      mediaProgress: state.mediaProgress,
-      myList: state.myList,
+      progress: active.progress,
+      watchedAt: active.watchedAt,
+      mediaProgress: active.mediaProgress,
+      pageHistory: active.pageHistory,
+      myList: active.myList,
+      profiles,
+      activeProfile: state.profileId,
       prefs: state.prefs
     }));
   } catch {
@@ -639,7 +726,7 @@ function topbar() {
       <div class="top-end">
         <button type="button" class="tab tab--icon" data-key="top-source" data-action="source" aria-label="Source (switch to browser or desktop)">${icon("input")}</button>
         <span id="wx-chip" class="wx-chip" hidden></span>
-        <time id="clock" class="clock"></time><span class="avatar" aria-hidden="true">G</span>
+        <time id="clock" class="clock"></time>${avatarHtml()}
       </div>
     </header>`;
 }
@@ -673,8 +760,13 @@ function appTile(app, section, preferred = false, action = "app") {
   if (app.iconSrc) face = `<img class="app-icon${app.mode === "program" ? " app-icon--small" : ""}" src="${esc(app.iconSrc)}" alt="" loading="lazy" decoding="async" />`;
   else if (external) face = `<span class="app-word app-word--${app.word || "plain"}">${esc(app.name)}</span>`;
   else face = icon(app.icon);
-  const via = app.chromeId ? '<span class="app-via">Chrome app</span>' : "";
-  const label = external ? `${app.name}. Opens in ${app.chromeId ? "its Chrome window" : "Chrome"}` : app.name;
+  const inside = appsOpenInside() && app.url && app.mode !== "program";
+  const running = inside && (ui.running || []).includes(app.id);
+  const via = running ? '<span class="app-via app-via--running">Open</span>'
+    : app.chromeId && !inside ? '<span class="app-via">Chrome app</span>' : "";
+  const label = !external ? app.name
+    : inside ? `${app.name}${running ? ", open in the background" : ""}`
+      : `${app.name}. Opens in ${app.chromeId ? "its Chrome window" : "Chrome"}`;
   return `
     <button type="button" class="app-tile${ui.moving === app.id ? " is-moving" : ""}" data-key="${section}-${app.id}" data-action="${action}" data-id="${app.id}" data-app="${app.id}"${preferred ? ' data-preferred="1"' : ""} aria-label="${esc(ui.moving === app.id ? `${label}. Moving: left and right move it, OK drops it` : label)}">
       <span class="app-art${external ? " app-art--brand" : ""}" style="--a:${app.colors[0]};--b:${app.colors[1]}">${face}${via}<span class="sheen"></span></span>
@@ -733,6 +825,12 @@ function localContinue() {
     .map(([path, p]) => ({ name: p.name || baseName(path), path, type: p.type, size: p.size || 0 }));
 }
 
+function continueRow() {
+  const items = continueItems();
+  if (!items.length && !state.pageHistory.length) return null;
+  return { id: "cont", title: "Continue watching", items, history: state.pageHistory, variant: "wide" };
+}
+
 function rowHtml(id, title, tilesHtml, variant = "wide") {
   return `
     <section class="row row--${variant}" data-zone="row-${id}" data-remember="v" aria-label="${esc(title)}">
@@ -755,15 +853,15 @@ function homeRows() {
   const rows = [];
   if (state.prefs.homeStyle === "minimal") {
     rows.push({ id: "apps", title: "Your apps", apps: true });
-    const contMin = continueItems();
-    if (contMin.length) rows.push({ id: "cont", title: "Continue watching", items: contMin, variant: "wide" });
+    const contMin = continueRow();
+    if (contMin) rows.push(contMin);
     const pcMin = localContinue();
     if (pcMin.length) rows.push({ id: "pccont", title: "Continue on this PC", files: rememberSet("r-pccont", pcMin) });
     if (state.myList.length) rows.push({ id: "mine", title: "My List", mixed: state.myList });
     return rows;
   }
-  const cont = continueItems();
-  if (cont.length) rows.push({ id: "cont", title: "Continue watching", items: cont, variant: "wide" });
+  const cont = continueRow();
+  if (cont) rows.push(cont);
   rows.push({ id: "apps", title: "Your apps", apps: true });
   const pcCont = localContinue();
   if (pcCont.length) rows.push({ id: "pccont", title: "Continue on this PC", files: rememberSet("r-pccont", pcCont) });
@@ -775,7 +873,7 @@ function homeRows() {
   if (ui.library && ui.library.music && ui.library.music.length) {
     rows.push({ id: "pcmusic", title: "Music on this PC", files: rememberSet("r-pcmusic", ui.library.music) });
   }
-  const seed = cont[0];
+  const seed = continueItems()[0];
   if (seed) {
     const similar = catalog.filter((item) => item.genre === seed.genre && item.id !== seed.id && item.kind !== "live");
     if (similar.length >= 2) rows.push({ id: "because", title: `Because you watched ${seed.title}`, items: similar, variant: "wide" });
@@ -818,6 +916,12 @@ function renderHome() {
     if (row.apps) return rowHtml(row.id, row.title, homeApps().map((app) => appTile(app, `r-${row.id}`)).join("") + addAppTile(`r-${row.id}`), "apps");
     if (row.mixed) return rowHtml(row.id, row.title, listTiles(row.mixed, `r-${row.id}`), "wide");
     if (row.files) return rowHtml(row.id, row.title, row.files.map((entry) => fileTile(entry, `r-${row.id}`)).join(""), "wide");
+    if (row.history) {
+      const section = `r-${row.id}`;
+      const opened = row.history.map((item) => historyTile(item, section)).join("");
+      const catalog = (row.items || []).map((item) => tile(item, section, { variant: row.variant })).join("");
+      return rowHtml(row.id, row.title, opened + catalog, row.variant);
+    }
     return mediaRow(row);
   }).join("");
   if (state.prefs.homeStyle === "minimal") {
@@ -866,6 +970,59 @@ function renderApps() {
 
 function fileEntryOf(e) {
   return { name: e.name, path: e.path, type: e.ftype, size: e.size || 0 };
+}
+
+function validPage(item) {
+  return !!item && typeof item.id === "string" && typeof item.url === "string" && /^https?:\/\//i.test(item.url) && typeof item.title === "string" && item.title.trim().length > 1;
+}
+
+function rememberPage(raw) {
+  if (!raw || typeof raw.url !== "string" || !/^https?:\/\//i.test(raw.url)) return;
+  const title = String(raw.title || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  if (title.length < 2) return;
+  let parsed;
+  try {
+    parsed = new URL(raw.url);
+  } catch {
+    return;
+  }
+  if (parsed.hash.length <= 2) parsed.hash = "";
+  const url = parsed.href;
+  const image = /^https?:\/\//i.test(raw.image || "") ? String(raw.image).slice(0, 800) : "";
+  const description = String(raw.description || "").replace(/\s+/g, " ").trim().slice(0, 180);
+  const id = `p${hash(url).toString(36)}`;
+  const item = {
+    id,
+    url,
+    title,
+    image,
+    description,
+    host: parsed.hostname.replace(/^www\./, ""),
+    appName: String(raw.appName || "").slice(0, 80),
+    at: Date.now()
+  };
+  state.pageHistory = [item, ...state.pageHistory.filter((entry) => entry.url !== url && entry.id !== id)].slice(0, 12);
+  save();
+  if (state.screen === "home" && !state.overlay) render(false);
+}
+
+function historyTile(item, section) {
+  const art = artOf(["#121722", `hsl(${hash(item.url) % 360} 55% 48%)`], item.url);
+  const host = item.host || hostOf(item.url);
+  const thumb = /^https?:\/\//i.test(item.image || "")
+    ? `<img class="thumb" src="${esc(item.image)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" />`
+    : `<span class="kind-mark">${icon("play")}</span>`;
+  const caption = item.description || host;
+  return `
+    <button type="button" class="tile tile--wide tile--file" data-key="${section}-${item.id}" data-action="open-history" data-hid="${esc(item.id)}" aria-label="${esc(`${item.title}. ${host}`)}">
+      <span class="tile-art ${art.cls}" style="${art.style}">
+        ${thumb}
+        <span class="badge">${esc(host)}</span>
+        <span class="tile-title">${esc(item.title)}</span>
+        <span class="sheen"></span>
+      </span>
+      <span class="tile-cap">${esc(caption)}</span>
+    </button>`;
 }
 
 function linkTile(e, section) {
@@ -978,8 +1135,8 @@ function searchResults() {
 
 function renderSearch() {
   const keys = KB_KEYS.map((ch) => `<button type="button" class="key" data-key="kb-${ch}" data-action="type" data-id="${ch}"${ch === "a" ? ' data-preferred="1"' : ""}>${ch}</button>`).join("");
-  const voice = SpeechRec ? `<button type="button" class="key" data-key="kb-mic" data-action="voice" aria-label="Voice search">${icon("mic")}</button>` : "";
-  const clear = `<button type="button" class="key${SpeechRec ? "" : " key--wide"}" data-key="kb-clear" data-action="type-clear" aria-label="Clear">${SpeechRec ? icon("close") : "Clear"}</button>`;
+  const voice = voiceSearchAvailable() ? `<button type="button" class="key" data-key="kb-mic" data-action="voice" aria-label="Voice search">${icon("mic")}</button>` : "";
+  const clear = `<button type="button" class="key${voiceSearchAvailable() ? "" : " key--wide"}" data-key="kb-clear" data-action="type-clear" aria-label="Clear">${voiceSearchAvailable() ? icon("close") : "Clear"}</button>`;
   return `
     <div class="page">
       <div class="search-layout">
@@ -1037,6 +1194,8 @@ function settingsPane() {
     case "weather":
       return paneHead("Weather & time", `The clock follows this computer: ${timeZoneName()} · ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`)
         + weatherChoices();
+    case "tv":
+      return tvModePane();
     case "wallpaper": {
       const wp = state.prefs.wallpaper;
       const choice = (id, title, desc, extra = "") => `
@@ -1104,7 +1263,7 @@ function settingsPane() {
 }
 
 function renderSettings() {
-  const tabs = SETTINGS_TABS.map((tab) => `
+  const tabs = SETTINGS_TABS.filter((tab) => tab.id !== "tv" || server.electron).map((tab) => `
     <button type="button" class="side-item${tab.id === state.settingsTab ? " is-on" : ""}" data-key="set-${tab.id}" data-action="settings-tab" data-id="${tab.id}"${tab.id === state.settingsTab ? ' data-preferred="1"' : ""}>
       <span>${esc(tab.label)}</span>${icon("chevR")}
     </button>`).join("");
@@ -2041,6 +2200,7 @@ function activate(el) {
     case "pick-program": addProgram(id, el.dataset.name || "Program"); break;
     case "list-add": addListLink(); break;
     case "open-link": openLink(el.dataset.lid); break;
+    case "open-history": openHistory(el.dataset.hid); break;
     case "home-style": setHomeStyle(id); break;
     case "setup-again": state.setupStep = 0; openNav("setup"); break;
     case "setup-next": setupGo(1); break;
@@ -2067,7 +2227,22 @@ function activate(el) {
     case "media-wall": { const e = currentEntry(); if (e) setWallpaper(`file:${e.path}`); break; }
     case "wall": chooseWallpaper(id); break;
     case "source": openSourceMenu(); break;
+    case "profile": openProfile(); break;
     case "refresh-apps": refreshApps(true); break;
+    case "host-toggle": setHost({ [id]: !(ui.host && ui.host[id]) }); break;
+    case "host-launch": setHost({ launchMode: id }); break;
+    case "host-quit": confirmExit(); break;
+    case "host-clear":
+      openSheet({
+        kicker: "TV mode",
+        title: "Sign out of all apps?",
+        body: "Every app inside the TV closes and forgets your sign-in. Your Chrome browser isn't affected.",
+        actions: [
+          { label: "Sign out of all apps", icon: "close", danger: true, run: () => api("/api/clear-app-data", {}).then(() => toast("Signed out of all apps", "check")) },
+          { label: "Cancel", icon: "chevL", run: () => {} }
+        ]
+      });
+      break;
     case "sheet": runSheet(Number(el.dataset.index)); break;
     case "sheet-close": closeOverlay(); break;
     case "back": back(); break;
@@ -2533,6 +2708,7 @@ function openMenuFor(el) {
   if (!el || state.screen === "player" || ui.moving) return false;
   if (el.dataset.ftype) return openFileMenu(el);
   if (el.dataset.lid) return openLinkMenu(el.dataset.lid);
+  if (el.dataset.hid) return openHistoryMenu(el.dataset.hid);
   if (el.dataset.app && el.dataset.action === "app") return openAppMenu(el.dataset.app);
   const id = el.dataset.item;
   const item = id && itemById(id);
@@ -3084,11 +3260,22 @@ function launchApp(app) {
   setTimeout(async () => {
     try {
       if (server.canLaunch) {
-        if (app.mode === "program") await api("/api/launch-program", { id: app.programId });
-        else if (app.chromeId) await api("/api/launch", { id: app.chromeId });
-        else await api("/api/open-url", { url: app.url });
+        let result = {};
+        if (app.mode === "program") result = await api("/api/launch-program", { id: app.programId });
+        else if (server.electron && app.url) result = await api("/api/open-url", { url: app.url, id: app.id, name: app.name, ...appDisplay(app) });
+        else if (app.chromeId) result = await api("/api/launch", { id: app.chromeId });
+        else result = await api("/api/open-url", { url: app.url });
+        if (result && result.inside) {
+          // The app is already on screen above the TV page (see "app-shown").
+          ui.away = true;
+          hideSignal(250);
+          return;
+        }
         ui.away = true;
-        setSignalText(`${app.name} is open`, app.chromeId || app.mode === "program" ? "Close its window to come back here" : "Alt+F4 closes it and brings you back");
+        const howBack = result && result.tracked
+          ? "Press Back (Esc) on the remote to come back here"
+          : app.chromeId || app.mode === "program" ? "Close its window to come back here" : "Alt+F4 closes it and brings you back";
+        setSignalText(`${app.name} is open`, howBack);
         hideSignal(2600);
       } else {
         const win = window.open(app.url, "_blank");
@@ -3104,7 +3291,113 @@ function launchApp(app) {
       toast(err.message, "close");
       hideSignal(0);
     }
-  }, 650);
+  }, (ui.running || []).includes(app.id) ? 200 : 650);
+}
+
+function openProfile() {
+  const person = currentProfile();
+  const actions = state.profiles.map((entry) => ({
+    label: entry.id === state.profileId ? `${entry.name} · watching` : entry.name,
+    icon: entry.id === state.profileId ? "check" : "user",
+    run: () => switchProfile(entry.id)
+  }));
+  if (state.profiles.length < 6) actions.push({ label: "Add a profile", icon: "plus", run: addProfile });
+  actions.push({ label: "Rename", icon: "edit", run: renameProfile });
+  if (state.profiles.length > 1) actions.push({ label: "Remove this profile", icon: "close", danger: true, run: confirmRemoveProfile });
+  openSheet({
+    kicker: "Profile",
+    title: person ? person.name : "Guest",
+    body: "Each profile keeps its own Continue watching and My List.",
+    actions
+  });
+}
+
+function switchProfile(id) {
+  if (id === state.profileId) return;
+  const people = packProfiles();
+  const next = people.find((entry) => entry.id === id);
+  if (!next) return;
+  state.profiles = people;
+  useProfile(next);
+  save();
+  toast(`Hello, ${next.name}`, "check");
+  state.focusKey = "top-profile";
+  render(false);
+}
+
+function addProfile() {
+  if (state.profiles.length >= 6) {
+    toast("Six profiles is the limit", "info");
+    return;
+  }
+  openTextEntry({
+    kicker: "Profile",
+    title: "Name",
+    placeholder: "Name",
+    validate: (value) => (value.trim() ? "" : "Type a name"),
+    onDone: (name) => {
+      const person = {
+        id: `u${Date.now().toString(36)}`,
+        name: name.trim().slice(0, 24),
+        color: state.profiles.length % PROFILE_COLORS.length,
+        progress: {},
+        watchedAt: {},
+        mediaProgress: {},
+        pageHistory: [],
+        myList: []
+      };
+      state.profiles = packProfiles();
+      state.profiles.push(person);
+      useProfile(person);
+      save();
+      toast(`Hello, ${person.name}`, "check");
+      state.focusKey = "top-profile";
+      render(false);
+    }
+  });
+}
+
+function renameProfile() {
+  const person = currentProfile();
+  if (!person) return;
+  openTextEntry({
+    kicker: "Profile",
+    title: "Name",
+    value: person.name,
+    validate: (value) => (value.trim() ? "" : "Type a name"),
+    onDone: (name) => {
+      person.name = name.trim().slice(0, 24);
+      save();
+      toast(`Profile is ${person.name}`, "check");
+      state.focusKey = "top-profile";
+      render(false);
+    }
+  });
+}
+
+function confirmRemoveProfile() {
+  const person = currentProfile();
+  if (!person || state.profiles.length < 2) return;
+  openSheet({
+    kicker: "Profile",
+    title: `Remove ${person.name}?`,
+    body: "Their Continue watching and My List go with them. The other profiles stay.",
+    actions: [
+      { label: "Remove", icon: "close", danger: true, run: () => removeProfile(person.id) },
+      { label: "Cancel", icon: "chevL", run: () => {} }
+    ]
+  });
+}
+
+function removeProfile(id) {
+  const people = packProfiles().filter((entry) => entry.id !== id);
+  if (!people.length) return;
+  state.profiles = people;
+  useProfile(people[0]);
+  save();
+  toast("Profile removed", "close");
+  state.focusKey = "top-profile";
+  render(false);
 }
 
 function openSourceMenu() {
@@ -3145,7 +3438,9 @@ function switchSource(target) {
         if (win) win.opener = null;
       }
       ui.away = true;
-      setSignalText(`Now showing ${name}`, "Come back to this window any time. Smart TV is on HDMI 1");
+      setSignalText(`Now showing ${name}`, server.electron
+        ? "Select Smart TV on the taskbar to come back. It returns to full screen on HDMI 1"
+        : "Come back to this window any time. Smart TV is on HDMI 1");
       hideSignal(2400);
     } catch (err) {
       toast(err.message, "close");
@@ -3154,11 +3449,32 @@ function switchSource(target) {
   }, 900);
 }
 
-function onReturn() {
+function zoomFadeHome() {
+  const box = document.getElementById("signal");
+  if (box) {
+    clearTimeout(ui.signalTimer);
+    box.classList.remove("is-on");
+    box.hidden = true;
+  }
+  const root = document.getElementById("app");
+  if (!root || motionReduced()) return;
+  root.classList.remove("zoom-fade");
+  void root.offsetWidth;
+  root.classList.add("zoom-fade");
+  clearTimeout(ui.zoomTimer);
+  ui.zoomTimer = setTimeout(() => root.classList.remove("zoom-fade"), 720);
+}
+
+function onReturn(event) {
   if (!ui.away || document.hidden) return;
   ui.away = false;
-  showSignal("HDMI 1", "Smart TV", "Connected");
-  hideSignal(1100);
+  const fromApp = !!(event && event.inside);
+  if (state.screen === "home" && !state.overlay) render(false);
+  if (fromApp) zoomFadeHome();
+  else {
+    showSignal("HDMI 1", "Smart TV", "Connected");
+    hideSignal(1100);
+  }
   if (state.screen === "media" || state.screen === "player") showOsd();
   if (ui.wasFullscreen && !document.fullscreenElement) {
     ui.refullscreen = true;
@@ -3192,19 +3508,26 @@ async function loadLibrary() {
 }
 
 async function connectCompanion() {
-  if (!location.protocol.startsWith("http")) return;
+  if (location.protocol === "file:") return;
   try {
     const status = await api("/api/status");
     server.ok = !!status.ok;
     server.canLaunch = !!status.canLaunch;
     server.volume = !!status.volume;
     server.wallpaper = !!status.wallpaper;
+    server.electron = !!status.electron;
   } catch {
     return;
   }
-  await Promise.allSettled([refreshApps(false), loadLibrary(), refreshVolume(false)]);
+  await Promise.allSettled([refreshApps(false), loadLibrary(), refreshVolume(false), loadHost()]);
   applyWallpaper();
   if (["home", "apps", "settings", "files", "setup", "programs"].includes(state.screen)) render(false);
+  // Windows app: warm up the first two apps on Home so they open instantly.
+  if (appsOpenInside()) {
+    homeApps().filter((a) => a.url && a.mode !== "program").slice(0, 2).forEach((a, i) => {
+      setTimeout(() => api("/api/preload-app", { id: a.id, name: a.name, url: a.url, ...appDisplay(a) }).catch(() => {}), 2500 + i * 2500);
+    });
+  }
 }
 
 /* ---------- Time (from this computer) ---------- */
@@ -3499,8 +3822,15 @@ function openAppMenu(id) {
   if (!app) return false;
   const actions = [
     { label: `Open ${app.name}`, icon: "play", run: () => openApp(id) },
+    ...(appsOpenInside() && (ui.running || []).includes(id)
+      ? [{ label: "Close app", icon: "close", run: () => api("/api/close-app", { id }).then(() => toast(`${app.name} closed`, "close")) }]
+      : []),
+    ...(server.electron && app.url && app.mode !== "program"
+      ? [{ label: "Open in Chrome instead", icon: "globe", run: () => api("/api/open-url", { url: app.url, id, name: app.name, mode: "tv" }) }]
+      : []),
     { label: "Move", icon: "move", run: () => startMove(id) },
-    { label: "Rename", icon: "edit", run: () => renameApp(id) }
+    { label: "Rename", icon: "edit", run: () => renameApp(id) },
+    ...(appsOpenInside() && app.url && app.mode !== "program" ? displayActions(app) : [])
   ];
   if (app.custom && app.kind === "web") actions.push({ label: "Change web address", icon: "link", run: () => editAppUrl(id) });
   actions.push(app.custom
@@ -3828,6 +4158,47 @@ function linkById(id) {
   return state.myList.find((e) => e.kind === "link" && e.id === id);
 }
 
+function historyById(id) {
+  return state.pageHistory.find((item) => item.id === id);
+}
+
+function openHistory(id) {
+  const item = historyById(id);
+  if (!item) return;
+  const hue = hash(item.url) % 360;
+  launchApp({
+    id: item.id,
+    name: item.title,
+    url: item.url,
+    mode: "web",
+    colors: [`hsl(${hue} 35% 14%)`, `hsl(${hue} 60% 48%)`]
+  });
+}
+
+function openHistoryMenu(id) {
+  const item = historyById(id);
+  if (!item) return false;
+  openSheet({
+    kicker: item.host || "Opened page",
+    title: item.title,
+    body: item.description || item.url,
+    actions: [
+      { label: "Open", icon: "play", run: () => openHistory(id) },
+      {
+        label: "Remove",
+        icon: "close",
+        danger: true,
+        run: () => {
+          state.pageHistory = state.pageHistory.filter((entry) => entry.id !== id);
+          save();
+          render(false);
+        }
+      }
+    ]
+  });
+  return true;
+}
+
 function openLink(id) {
   const e = linkById(id);
   if (!e) return;
@@ -4115,6 +4486,133 @@ function renderSetup() {
       <div class="setup-dots" aria-hidden="true">${dots}</div>
       <div class="setup-body">${body}</div>
     </section>`;
+}
+
+/* ---------- TV mode (the Windows app) ---------- */
+
+async function loadHost() {
+  if (!server.electron) return;
+  try {
+    ui.host = await api("/api/host");
+    ui.running = ui.host.running || [];
+  } catch {
+    ui.host = null;
+  }
+}
+
+// How an app looks inside the TV: YouTube can use its TV layout; other sites get a display size.
+const ZOOMS = [1, 1.25, 1.5, 1.75];
+
+function hasTvLayout(app) {
+  try {
+    return /^(www\.|m\.)?youtube\.com$/i.test(new URL(app.url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function appDisplay(app) {
+  return {
+    zoom: state.prefs.appZoom[app.id] || 1,
+    layout: state.prefs.appLayout[app.id] === "desktop" ? "desktop" : "auto"
+  };
+}
+
+function displayActions(app) {
+  const actions = [];
+  const d = appDisplay(app);
+  if (hasTvLayout(app)) {
+    const tv = d.layout !== "desktop";
+    actions.push({
+      label: tv ? "Use the normal website" : "Use the TV layout",
+      icon: "tv",
+      run: () => {
+        state.prefs.appLayout[app.id] = tv ? "desktop" : "tv";
+        save();
+        toast(tv ? `${app.name} will open as the normal website` : `${app.name} will open in its TV layout`, "tv");
+      }
+    });
+  }
+  if (!hasTvLayout(app) || d.layout === "desktop") {
+    const next = ZOOMS[(ZOOMS.indexOf(d.zoom) + 1) % ZOOMS.length] || 1;
+    actions.push({
+      label: `Display size: ${Math.round(d.zoom * 100)}% → ${Math.round(next * 100)}%`,
+      icon: "sliders",
+      run: () => {
+        state.prefs.appZoom[app.id] = next;
+        save();
+        toast(`${app.name} opens at ${Math.round(next * 100)}%`, "sliders");
+      }
+    });
+  }
+  return actions;
+}
+
+function appsOpenInside() {
+  return server.electron && !!ui.host && ui.host.launchMode === "inside";
+}
+
+async function setHost(change) {
+  try {
+    ui.host = await api("/api/host", change);
+    if ("kiosk" in change) toast(ui.host.kiosk ? "Full-screen TV mode on" : "Full-screen TV mode off", "tv");
+    if ("startWithWindows" in change) toast(ui.host.startWithWindows ? "Smart TV starts when Windows starts" : "Smart TV won't start with Windows", "tv");
+    if ("launchMode" in change) {
+      toast({ inside: "Apps open inside the TV", tv: "Apps open in Chrome (TV profile)", chrome: "Apps open in your Chrome profile" }[ui.host.launchMode], "globe");
+    }
+  } catch (err) {
+    toast(err.message, "close");
+  }
+  refreshPane();
+}
+
+function tvModePane() {
+  const h = ui.host;
+  if (!h) return paneHead("TV mode", "Loading…");
+  const row = (key, label, desc) => `
+    <button type="button" class="switch-row" role="switch" aria-checked="${!!h[key]}" data-key="host-${key}" data-action="host-toggle" data-id="${key}">
+      <span class="sr-text"><span class="sr-label">${esc(label)}</span><span class="sr-desc">${esc(desc)}</span></span>
+      <span class="switch" aria-hidden="true"><span></span></span>
+    </button>`;
+  const choice = (id, title, desc) => `
+    <button type="button" class="switch-row choice" role="radio" aria-checked="${h.launchMode === id}" data-key="launch-${id}" data-action="host-launch" data-id="${id}">
+      <span class="sr-text"><span class="sr-label">${esc(title)}</span><span class="sr-desc">${esc(desc)}</span></span>
+      <span class="radio" aria-hidden="true"></span>
+    </button>`;
+  return paneHead("TV mode", "How Smart TV takes over this PC.")
+    + row("kiosk", "Full-screen TV mode", h.windowed
+      ? "Started with --windowed, so this applies next time."
+      : "Covers the taskbar and desktop like a TV. Ctrl+Shift+Q always exits.")
+    + row("startWithWindows", "Start with Windows", "Opens Smart TV when you sign in to Windows, like a TV box that's always on.")
+    + `<h3 class="pane-sub">Streaming apps open in</h3>`
+    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded for instant switching. Back goes back. Hold Back and it asks before returning Home. Sign in once; it's remembered.")
+    + choice("tv", "Chrome, TV profile", "A separate full-screen Chrome. Slower to open. Back (Esc) closes it and returns here.")
+    + choice("chrome", "Chrome, your profile", "Uses the accounts already signed in to Chrome. Alt+F4 closes it.")
+    + `<p class="wx-status">${icon(h.drm === "ready" ? "check" : "info")}<span>${esc(h.drm === "ready"
+      ? "Protected video (Widevine) is ready: Netflix, DStv, Showmax, and Spotify can play inside the TV."
+      : "Protected video isn't available in this build, so Netflix, DStv, Showmax, and Spotify won't play inside the TV. YouTube, YouTube Music, and most sites will. See docs/electron.md, or open those apps in Chrome.")}</span></p>`
+    + `<button type="button" class="path" data-key="host-clear" data-action="host-clear">
+        <span class="path-title">Sign out of all apps</span>
+        <span class="path-body">Closes the apps inside the TV and clears their sign-ins and data.</span>
+      </button>`
+    + `<button type="button" class="path path--danger" data-key="host-quit" data-action="host-quit">
+        <span class="path-title">Exit to Windows</span>
+        <span class="path-body">Closes Smart TV. Ctrl+Shift+Q does this from anywhere in Smart TV.</span>
+      </button>`;
+}
+
+function confirmExit() {
+  if (state.overlay && state.overlay.title === "Exit to Windows?") return;
+  if (state.overlay) closeOverlay(false);
+  openSheet({
+    kicker: "Smart TV",
+    title: "Exit to Windows?",
+    body: "Smart TV closes and the Windows desktop comes back.",
+    actions: [
+      { label: "Stay on the TV", icon: "tv", run: () => {} },
+      { label: "Exit to Windows", icon: "close", danger: true, run: () => (window.tvHost ? window.tvHost.quit() : api("/api/quit", {})) }
+    ]
+  });
 }
 
 /* ---------- Toasts, sound, ambient ---------- */
@@ -4685,11 +5183,30 @@ function init() {
   render();
   applyWallpaper();
   connectCompanion();
+  if (window.tvHost) {
+    window.tvHost.onEvent((event) => {
+      if (!event) return;
+      if (event.type === "close-requested") confirmExit();
+      if (event.type === "returned") {
+        ui.away = true;
+        onReturn(event);
+      }
+      if (event.type === "app-shown") {
+        ui.away = true;
+        hideSignal(250);
+      }
+      if (event.type === "page-history") rememberPage(event.item);
+      if (event.type === "running") {
+        ui.running = Array.isArray(event.ids) ? event.ids : [];
+        if (["home", "apps"].includes(state.screen) && !state.overlay) render(false);
+      }
+    });
+  }
   if (state.prefs.onboarded) refreshWeather(false);
   setInterval(() => refreshWeather(false), 10 * 60 * 1000);
   document.addEventListener("error", (event) => {
     const img = event.target;
-    if (img && img.tagName === "IMG" && img.closest && img.closest(".app-art, .folder-ic, .sig-app")) img.style.visibility = "hidden";
+    if (img && img.tagName === "IMG" && img.closest && img.closest(".app-art, .folder-ic, .sig-app, .tile-art")) img.style.visibility = "hidden";
   }, true);
 
   if (!state.prefs.seenTips && state.prefs.onboarded) {
