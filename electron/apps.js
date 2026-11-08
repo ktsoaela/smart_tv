@@ -9,12 +9,12 @@
 //   Hold Back (about 0.7 s)                 returns Home from anywhere
 //   Volume keys                             show the TV's volume panel
 //
-// All apps share one saved session ("persist:tv-apps"): sign in once, stay signed in.
+// Apps share one in-memory session. It is not written to disk, and it is gone when Smart TV closes.
 
 const { WebContentsView, session, ipcMain } = require("electron");
 const path = require("path");
 
-const PARTITION = "persist:tv-apps";
+const PARTITION = "tv-apps";
 const MAX_LOADED = 4;
 const HOLD_MS = 650;
 const PAGE_META_JS = `(() => {
@@ -41,7 +41,7 @@ const PAGE_META_JS = `(() => {
 })()`;
 // Sites with a real 10-foot interface on the web, and the device identity that unlocks it.
 // YouTube serves its TV app (big rows, remote keys, sign-in by code at yt.be/activate) at
-// /tv, but only to TV-like browsers. Netflix, Spotify, and Prime have no TV interface on
+// /tv, but only to TV-like browsers. Most other sites have no TV interface on
 // the web, so they keep their normal site and get remote navigation instead.
 const LEANBACK_UA = "Mozilla/5.0 (PS4; Leanback Shell) Gecko/20100101 Firefox/65.0 LeanbackShell/01.00.01.75 Sony PS4/ (PS4, , no, CH)";
 const TV_LAYOUTS = [
@@ -91,6 +91,9 @@ class AppViews {
   }
 
   prepareSession() {
+    const old = session.fromPartition("persist:tv-apps");
+    old.clearStorageData().catch(() => {});
+    old.clearCache().catch(() => {});
     // Look like regular Chrome: some services refuse anything that says "Electron".
     const ua = this.ses.getUserAgent().replace(/\s(?:Electron|Smart[ -]?TV)\/\S+/gi, "");
     this.ses.setUserAgent(ua);

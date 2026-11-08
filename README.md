@@ -26,18 +26,39 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 
 ## Why Smart TV
 
-- **Feels like a current TV home screen.** Artwork fills the screen and follows focus, the featured title rotates, and rows keep their place.
+- **Feels like a current TV home screen.** Artwork fills the screen and follows focus, the featured title rotates, and rows keep their place. Scrolling back to the top brings the navigation bar with it.
 - **Moves like a remote expects.** Focus goes to the nearest item in each direction, each row remembers where you were, and the edge of a row bounces. Hold OK for options.
 - **Takes any input.** Keyboard, the on-screen pad, a gamepad, LG and Samsung TV remotes, a mouse, touch, and the browser Back button.
 - **Searches from the couch.** An on-screen keyboard, genre shortcuts, live results, and voice where the browser supports it.
 - **Plays a preview properly.** Controls hide on their own, skip 10 seconds, captions, and an Up next countdown.
 - **Respects the room.** Same layout at 1080p and 4K, reduce-motion and larger-text settings, high-contrast focus, and an ambient screen when idle.
 - **Plays your own media.** My PC browses this computer's folders with the remote and plays videos, music, and photos, with resume, Next/Previous, and a slideshow.
-- **Opens your streaming apps.** Netflix, SABC Plus, DStv, Spotify, and YouTube Music, plus every shortcut you made in Chrome, with its own icon.
-- **Feels like a TV.** A volume panel when the volume changes in full screen, your desktop wallpaper behind Home, and a Source button that switches to the browser or the desktop like changing HDMI input.
-- **Is yours to arrange.** Add websites and PC programs as apps; move, rename, hide, or remove any app; keep titles, links, and files in My List in your own order.
-- **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather for this computer's location, and a wallpaper.
-- **Keeps your list,** progress, and settings in this browser.
+- **Opens sites you choose.** Add a web address or a PC program. Shortcuts you already made in Chrome show up with their own icons. Smart TV does not ship tiles for other companies' services.
+- **Keeps apps in the window.** On Windows, a site opens inside Smart TV. Up to four stay loaded. An open app shows an Open mark. Home pauses playback.
+- **Asks before you leave.** Back goes back inside the app. Hold Back, or the Home key, asks whether to stay or go Home. Home then zooms and fades in. Switching HDMI, the browser, or the desktop still uses the source line.
+- **Has profiles.** The circle by the clock opens a profile. Each profile keeps its own My List and sample Continue watching. Add, rename, switch, or remove one.
+- **Shows what you opened, until you quit.** A page with a title, and a picture when the site provides one, sits at the front of Continue watching. Close the app and that row is dropped.
+- **Feels like a TV.** A volume panel when the volume changes, your desktop wallpaper behind Home, and a Source button for the browser or the desktop.
+- **Is yours to arrange.** Move, rename, hide, or remove any app. Keep titles, links, and files in My List in your own order.
+- **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather, and a wallpaper. The weather lookup is not written down.
+- **Does not keep the sites you open.** Sign-ins inside the Windows app live in memory and are gone when Smart TV closes. The public page stores nothing. My List and the launcher's own settings stay in this browser.
+
+---
+
+## What it does
+
+| Piece | What you get |
+| --- | --- |
+| Home | Featured title, Continue watching, your apps, Top 10, live, movies, series, and My List. Minimal Home is a shorter set of rows. |
+| Profiles | A letter by the clock. Switch people. Each one has a separate My List. |
+| Opened pages | Title and picture for a page you opened this session. OK opens it again. Hold OK to remove it. |
+| Apps | Sites and programs you add, plus Chrome shortcuts already on this PC. Hold OK to move, rename, or remove. |
+| Inside the TV | The Windows app draws the site in the same window. Back, hold Back, and a zoom fade back to Home. |
+| Source | HDMI 1 is Smart TV, HDMI 2 is a browser, HDMI 3 is the desktop. Those changes use the source screen. |
+| My PC | Folders, video, music, photos, resume, and a slideshow. |
+| Search | On-screen keyboard, genres, and voice where the browser allows it. |
+| Weather | Forecast for this computer while the app is open. The place is not saved. |
+| Settings | Home style, motion, wallpaper, sound, playback, the remote, and TV mode. |
 
 ---
 
@@ -86,6 +107,7 @@ That starts the companion on `http://localhost:8787` and opens it. The companion
 | `js/tv.js` | Screens, spatial focus, input, media player, apps, sources |
 | `docs/guide.md` | Keys, network URL, Google TV hardware |
 | `assets/logo.svg` | Mark |
+| `assets/icon.ico` | Window, taskbar, and installer icon |
 
 ---
 

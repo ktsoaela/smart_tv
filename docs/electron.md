@@ -45,34 +45,34 @@ If `npm install` finishes but `npm start` says Electron isn't installed, run `no
 Apps open in the same full-screen window, as web views laid over Home, like switching the TV's input. There's no separate browser and no window flash.
 
 - **Fast:** the first two apps on Home load quietly (muted) when the TV starts, so they open in about half a second. Up to four apps stay loaded; switching back to one is instant. Going Home pauses whatever was playing.
-- **Remote:** Back (Esc, or the mouse's back button) goes back inside the app. On the app's first page, Back asks whether to leave. **Hold Back**, or the Home key, asks from anywhere: *Leave Netflix?* Stay keeps the app open. Go to Home returns to the TV. Volume keys show the TV's volume panel over the app. Ctrl+Shift+Q still exits.
-- **Signing in:** all apps share one saved session in `%APPDATA%\Smart TV\Partitions\tv-apps`. Sign in once, inside the TV, and it's remembered. Google sign-in opens in a small window above the app. Settings → TV mode → **Sign out of all apps** clears it.
-- **Your Chrome apps** open inside too: Smart TV reads their start addresses from Chrome. Any it can't read open through their Chrome shortcut.
-- **Continue watching:** when a page inside an app has a title (and a picture, when the site provides one), it is saved at the front of **Continue watching**. OK opens that page again. Hold OK to remove it. A site's own front page is skipped. Night Market and Copper Line stay in that row as sample titles.
+- **Remote:** Back (Esc, or the mouse's back button) goes back inside the app. On the app's first page, Back asks whether to leave. **Hold Back**, or the Home key, asks from anywhere. Stay keeps the app open. Go to Home returns to the TV with a zoom and fade. Volume keys show the TV's volume panel over the app. Ctrl+Shift+Q still exits.
+- **Signing in:** apps inside the TV share one session that lives in memory. Close Smart TV and the sign-ins are gone. Nothing from those sites is written under `%APPDATA%`. A sign-in page can still open in a small window above the app. Settings → TV mode → **Sign out of all apps** clears the session immediately.
+- **Your Chrome apps** open inside too, when Chrome already recorded a start address. Any it can't read open through their Chrome shortcut.
+- **Continue watching:** while Smart TV is open, a page with a title (and a picture, when the site provides one) is shown at the front of **Continue watching**. OK opens that page again. Hold OK to remove it. A site's own front page is skipped. Closing Smart TV drops that row. Night Market and Copper Line stay as sample titles.
 - **Options per app:** hold OK on an app → **Close app** (frees memory) or **Open in Chrome instead**.
 
 **Why it can't reuse your Chrome sign-ins:** Chrome encrypts its cookies with Windows app-bound encryption, so no other program, Electron included, can read them, and Chrome locks the profile while it's open. A separate sign-in inside the TV is the only way to keep apps inside.
 
 ### TV layouts and remote navigation
 
-**YouTube opens in its TV layout**: the same 10-foot app as on a smart TV, at `youtube.com/tv`. YouTube only serves it to TV-like devices, so Smart TV presents YouTube (and only YouTube) as a Leanback TV device. Sign in from the TV screen with a code at `yt.be/activate` on your phone; there's no Google sign-in page. Back works inside YouTube as it does on a TV. When YouTube offers to exit, Smart TV returns Home and keeps YouTube loaded. To use the normal website instead, hold OK on the YouTube tile → **Use the normal website**.
+**One site that publishes a 10-foot layout opens that layout.** It only serves that layout to TV-like devices, so Smart TV presents that one site as a TV device. Sign in from the code shown on the TV. Back works as it does on a television. When that site offers to exit, Smart TV returns Home and keeps the site loaded. Hold OK on its tile → **Use the normal website** to open the ordinary page instead.
 
-**Other sites have no TV layout on the web.** Netflix, Spotify, Prime Video, DStv, and Showmax only ship their TV interfaces inside native TV apps. Pretending to be a Bravia, Fire TV, or Android TV gets the desktop site, the mobile site, or an "unsupported device" page. So these keep their normal site, with:
+**Other sites keep their normal page.** Pretending to be a television usually gets the desktop site, the mobile site, or an unsupported-device page. Those sites open as themselves, with:
 
 - **Remote navigation:** the arrow keys move a white focus ring between links and buttons, and OK selects. This is Chromium's built-in spatial navigation. Where nothing can take focus, the arrows scroll.
 - **Display size:** hold OK on the app's tile → **Display size** cycles 100%, 125%, 150%, 175%. Bigger reads better from the sofa.
 - Hidden scrollbars, for a cleaner picture.
 
-### Protected video (Netflix, DStv, Showmax, Spotify)
+### Protected video
 
-These services use Widevine DRM, and standard Electron doesn't include it. YouTube, YouTube Music, SABC Plus's free content, WhatsApp, and most websites work inside the TV as they are. For DRM services, switch to castLabs' Widevine build of Electron:
+Some sites use Widevine DRM, and standard Electron doesn't include it. Ordinary pages play as they are. For protected video, switch to castLabs' Widevine build of Electron:
 
 ```bash
 npm install --save-dev --save-exact "https://github.com/castlabs/electron-releases#v45.2.1+wvcus"
 node node_modules/electron/install.js
 ```
 
-Netflix and some others also require the app to be signed for Widevine VMP. castLabs signs it for free:
+Some of those sites also require the app to be signed for Widevine VMP. castLabs signs it for free:
 
 ```bash
 py -m pip install --upgrade castlabs-evs
@@ -96,7 +96,7 @@ Until then, open those apps in Chrome: hold OK on the app → **Open in Chrome i
 - **`taskkill /im chrome.exe`** closes every Chrome window you have, not just the TV app. Smart TV closes only the process tree it started.
 - **`nodeIntegration: true`** would let any page in the window run code on your PC. The window uses `contextIsolation`, a sandbox, and a two-function preload bridge.
 - **A global Esc shortcut all the time** would steal Esc from every app. Inside the TV, Back is read from the app's own key events. For the Chrome TV profile, Esc is registered only while that window is open.
-- **A TV user agent for every app** doesn't unlock TV layouts (only YouTube has one on the web), and it can get DRM services to refuse playback. Only YouTube gets one.
+- **A TV user agent for every app** doesn't unlock a 10-foot layout (only one site publishes one on the web), and it can get protected-video sites to refuse playback. Only that site gets one.
 - **`overflow: hidden` on every page** would stop ordinary sites from scrolling. Only the scrollbars are hidden.
 - **The `<webview>` tag** is discouraged by Electron. Apps use `WebContentsView`, which is sandboxed and isolated from the TV page.
 
@@ -115,6 +115,6 @@ The PC sees the remote as keyboard keys. Smart TV listens for arrows, Enter (OK)
 | `electron/main.js` | Kiosk window, `app://tv` scheme, Widevine check, Chrome options, sources, TV mode settings |
 | `electron/api.js` | The `/api/*` endpoints: files with byte ranges, Chrome shortcuts, programs and icons, wallpaper, volume, launching |
 | `electron/audio.js` | Windows system volume through a long-lived PowerShell process (no native modules) |
-| `electron/apps.js` | Apps inside the TV: views, shared session, Back and Home, preloading, the panel over apps |
+| `electron/apps.js` | Apps inside the TV: views, in-memory session, Back and Home, preloading, the panel over apps |
 | `electron/hud.html` | The small panel shown over apps (hints, volume) |
 | `electron/preload.js` | The page's only bridge: TV events and quit |

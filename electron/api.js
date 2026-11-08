@@ -214,24 +214,8 @@ function shortcutScript(dirs, recurse) {
 
 let appsCache = { at: 0, data: [] };
 
-// When Chrome's record is compressed and unreadable, well-known apps still get an address.
-const KNOWN_APPS = [
-  [/whatsapp/i, "https://web.whatsapp.com/"],
-  [/youtube music/i, "https://music.youtube.com/"],
-  [/youtube/i, "https://www.youtube.com/"],
-  [/netflix/i, "https://www.netflix.com/browse"],
-  [/spotify/i, "https://open.spotify.com/"],
-  [/showmax/i, "https://www.showmax.com/"],
-  [/dstv/i, "https://now.dstv.com/"],
-  [/sabc/i, "https://www.sabc-plus.com/"],
-  [/disney/i, "https://www.disneyplus.com/"],
-  [/prime video/i, "https://www.primevideo.com/"],
-  [/twitch/i, "https://www.twitch.tv/"]
-];
-
-function knownAppUrl(name) {
-  const hit = KNOWN_APPS.find(([re]) => re.test(name));
-  return hit ? hit[1] : "";
+function knownAppUrl() {
+  return "";
 }
 
 // Chrome keeps each installed web app's start address in its sync database

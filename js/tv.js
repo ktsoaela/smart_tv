@@ -34,15 +34,7 @@ const catalog = [
   { id: "concert-hour", title: "Concert Hour", kind: "live", genre: "Music", year: 2026, minutes: 0, blurb: "One stage, one hour, and the room noise left in.", colors: ["#2a1424", "#ff8ad4"] }
 ];
 
-// Streaming services open in Chrome. If you already made a Chrome shortcut for one,
-// the tile opens that shortcut instead (same name), so it keeps your sign-in and window.
-const STREAMING = [
-  { id: "netflix", name: "Netflix", mode: "web", url: "https://www.netflix.com/browse", blurb: "Films and series. Opens in Chrome.", colors: ["#140405", "#e50914"], word: "netflix" },
-  { id: "sabcplus", name: "SABC Plus", mode: "web", url: "https://www.sabc-plus.com/", blurb: "SABC channels, live and on demand. Opens in Chrome.", colors: ["#061a33", "#2b8fe8"], word: "sabc" },
-  { id: "dstv", name: "DStv", mode: "web", url: "https://now.dstv.com/", blurb: "DStv Stream: live channels and catch-up. Opens in Chrome.", colors: ["#03112a", "#1673ff"], word: "dstv" },
-  { id: "spotify", name: "Spotify", mode: "web", url: "https://open.spotify.com/", blurb: "Music and podcasts. Opens in Chrome.", colors: ["#06140b", "#1ed760"], word: "spotify" },
-  { id: "ytmusic", name: "YouTube Music", mode: "web", url: "https://music.youtube.com/", blurb: "Songs, albums, and mixes. Opens in Chrome.", colors: ["#170405", "#ff2a2a"], word: "ytmusic" }
-];
+// No built-in streaming tiles. Add a site yourself, or let a shortcut you already made in Chrome show up.
 
 const apps = [
   { id: "files", name: "My PC", icon: "pc", mode: "files", blurb: "Videos, music, and photos on this computer.", colors: ["#16202e", "#8ab4ff"] },
@@ -336,11 +328,7 @@ function itemById(id) {
 }
 
 function streamingApps() {
-  return STREAMING.map((app) => {
-    const match = ui.chromeApps.find((c) => c.name.toLowerCase() === app.name.toLowerCase()
-      || c.name.toLowerCase().startsWith(`${app.name.toLowerCase()} `));
-    return match ? { ...app, chromeId: match.id, iconSrc: match.hasIcon ? iconUrl(match.id) : "" } : app;
-  });
+  return [];
 }
 
 function chromeOnlyApps() {
@@ -597,7 +585,7 @@ function readWatching(source) {
     progress: source && source.progress && typeof source.progress === "object" ? source.progress : { ...SAMPLE_PROGRESS },
     watchedAt: source && source.watchedAt && typeof source.watchedAt === "object" ? source.watchedAt : {},
     mediaProgress: source && source.mediaProgress && typeof source.mediaProgress === "object" ? source.mediaProgress : {},
-    pageHistory: Array.isArray(source && source.pageHistory) ? source.pageHistory.filter(validPage).slice(0, 12) : [],
+    pageHistory: [],
     myList: savedList.filter(validListEntry)
   };
 }
@@ -629,7 +617,7 @@ function packProfiles() {
       progress: state.progress,
       watchedAt: state.watchedAt,
       mediaProgress: state.mediaProgress,
-      pageHistory: state.pageHistory,
+      pageHistory: [],
       myList: state.myList
     };
   });
@@ -655,7 +643,7 @@ function load() {
   useProfile(people.find((person) => person.id === (saved && saved.activeProfile)) || people[0]);
   state.prefs = { ...DEFAULT_PREFS, ...(saved && saved.prefs ? saved.prefs : {}) };
   const p = state.prefs;
-  p.weather = { ...DEFAULT_PREFS.weather, ...(p.weather || {}) };
+  p.weather = { ...DEFAULT_PREFS.weather, ...(p.weather || {}), lat: null, lon: null, place: "", locatedAt: 0 };
   for (const key of ["customApps", "hiddenApps", "appOrder"]) if (!Array.isArray(p[key])) p[key] = [];
   for (const key of ["appNames", "appZoom", "appLayout"]) if (!p[key] || typeof p[key] !== "object") p[key] = {};
   if (!["busy", "minimal"].includes(p.homeStyle)) p.homeStyle = "busy";
@@ -673,6 +661,17 @@ function syncList() {
   state.list = new Set(state.myList.filter((e) => e.kind === "title").map((e) => e.id));
 }
 
+function prefsForDisk() {
+  const prefs = JSON.parse(JSON.stringify(state.prefs));
+  if (prefs.weather) {
+    prefs.weather.lat = null;
+    prefs.weather.lon = null;
+    prefs.weather.place = "";
+    prefs.weather.locatedAt = 0;
+  }
+  return prefs;
+}
+
 function save() {
   try {
     const profiles = packProfiles();
@@ -682,11 +681,11 @@ function save() {
       progress: active.progress,
       watchedAt: active.watchedAt,
       mediaProgress: active.mediaProgress,
-      pageHistory: active.pageHistory,
+      pageHistory: [],
       myList: active.myList,
       profiles,
       activeProfile: state.profileId,
-      prefs: state.prefs
+      prefs: prefsForDisk()
     }));
   } catch {
     /* keep going if the browser blocks storage */
@@ -3600,10 +3599,11 @@ function wmo(code, isDay = 1) {
 }
 
 function loadWeatherCache() {
+  ui.weather = null;
   try {
-    ui.weather = JSON.parse(localStorage.getItem(WEATHER_KEY) || "null");
+    localStorage.removeItem(WEATHER_KEY);
   } catch {
-    ui.weather = null;
+    /* nothing kept */
   }
 }
 
@@ -3675,11 +3675,6 @@ async function refreshWeather(force = false) {
       + `&temperature_unit=${f ? "fahrenheit" : "celsius"}&wind_speed_unit=${f ? "mph" : "kmh"}`);
     ui.weather = { at: Date.now(), lat: w.lat, lon: w.lon, unit, place: w.place, current: d.current, daily: d.daily };
     ui.weatherError = "";
-    try {
-      localStorage.setItem(WEATHER_KEY, JSON.stringify(ui.weather));
-    } catch {
-      /* cache is optional */
-    }
   } catch (err) {
     ui.weatherError = (err && err.message) || "The weather isn't available right now";
   } finally {
@@ -4034,7 +4029,7 @@ function explainApk() {
   openSheet({
     kicker: "Android apps",
     title: "APK files need Android",
-    body: "This TV runs in a browser on Windows, which can't install Android apps. On a Google TV or Android TV you can sideload an APK with the Downloader app. Here, add the service's website instead: Netflix, Showmax, DStv, SABC Plus, and most others have one.",
+    body: "This TV runs in a browser on Windows, which can't install Android apps. On a Google TV or Android TV you can sideload an APK with the Downloader app. Here, add the site yourself from Add app.",
     actions: [
       { label: "Add a website instead", icon: "globe", run: () => addWebApp() },
       { label: "Close", icon: "close", run: () => {} }
@@ -4585,12 +4580,12 @@ function tvModePane() {
       : "Covers the taskbar and desktop like a TV. Ctrl+Shift+Q always exits.")
     + row("startWithWindows", "Start with Windows", "Opens Smart TV when you sign in to Windows, like a TV box that's always on.")
     + `<h3 class="pane-sub">Streaming apps open in</h3>`
-    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded for instant switching. Back goes back. Hold Back and it asks before returning Home. Sign in once; it's remembered.")
+    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded until you quit. Back goes back. Hold Back and it asks before returning Home. Sign-ins are forgotten when Smart TV closes.")
     + choice("tv", "Chrome, TV profile", "A separate full-screen Chrome. Slower to open. Back (Esc) closes it and returns here.")
     + choice("chrome", "Chrome, your profile", "Uses the accounts already signed in to Chrome. Alt+F4 closes it.")
     + `<p class="wx-status">${icon(h.drm === "ready" ? "check" : "info")}<span>${esc(h.drm === "ready"
-      ? "Protected video (Widevine) is ready: Netflix, DStv, Showmax, and Spotify can play inside the TV."
-      : "Protected video isn't available in this build, so Netflix, DStv, Showmax, and Spotify won't play inside the TV. YouTube, YouTube Music, and most sites will. See docs/electron.md, or open those apps in Chrome.")}</span></p>`
+      ? "Protected video is ready in this build, so sites that require it can play inside the TV."
+      : "Protected video isn't available in this build, so sites that require it won't play inside the TV. Most ordinary sites will. See docs/electron.md, or open the site in Chrome.")}</span></p>`
     + `<button type="button" class="path" data-key="host-clear" data-action="host-clear">
         <span class="path-title">Sign out of all apps</span>
         <span class="path-body">Closes the apps inside the TV and clears their sign-ins and data.</span>

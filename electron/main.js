@@ -5,8 +5,8 @@
 // - The UI is the same front end as the browser version (index.html, css/, js/),
 //   served from the private app://tv scheme. Its /api/* calls are answered here (api.js).
 // - Streaming apps open inside the TV window by default (apps.js): web views laid over the
-//   TV page, with one saved session for all apps. DRM video (Netflix, DStv, Showmax,
-//   Spotify) needs the Widevine build of Electron from castLabs; see docs/electron.md.
+//   TV page. The in-TV session is kept in memory only. Protected video needs the
+//   Widevine build of Electron from castLabs; see docs/electron.md.
 // - Optional: open apps in Chrome instead, either a separate kiosk "TV" profile that the
 //   remote's Back closes, or your everyday Chrome profile.
 
@@ -20,6 +20,7 @@ const { Audio } = require("./audio");
 const { AppViews, hudFile } = require("./apps");
 
 const ROOT = path.resolve(__dirname, "..");
+const APP_ICON = path.join(ROOT, "assets", "icon.ico");
 const STATIC_DIRS = new Set(["css", "js", "assets"]);
 const WINDOWED = process.argv.includes("--windowed") || process.env.SMARTTV_WINDOWED === "1";
 const HIDDEN = process.env.SMARTTV_HIDDEN === "1";
@@ -28,6 +29,7 @@ const DEFAULTS = { kiosk: true, startWithWindows: false, launchMode: "inside" };
 // Remote navigation on ordinary websites: the arrow keys move focus between links and
 // buttons. The TV page handles its own arrows (and cancels the default), so it's unaffected.
 app.commandLine.appendSwitch("enable-spatial-navigation");
+if (process.platform === "win32") app.setAppUserModelId("com.ktsoaela.smarttv");
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
@@ -260,6 +262,7 @@ function createWindow() {
     show: false,
     backgroundColor: "#07080b",
     title: "Smart TV",
+    icon: APP_ICON,
     autoHideMenuBar: true,
     kiosk: !WINDOWED && settings.kiosk,
     fullscreen: !WINDOWED && !settings.kiosk,

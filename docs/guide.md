@@ -53,7 +53,7 @@ The browser Back button and the Android back gesture also go back one screen.
 | Screen | What you get |
 | --- | --- |
 | Home | A featured title that rotates every few seconds (left and right switch it), then Continue watching, Top 10, apps, Live now, a "Because you watched" row, Movies, Series, and From My List. The artwork behind the screen follows the focused tile, and a panel at the top describes it |
-| Apps | Streaming (Netflix, SABC Plus, DStv, Spotify, YouTube Music), From Chrome (every shortcut you made in Chrome), and On this TV |
+| Apps | Shortcuts you already made in Chrome, sites you add yourself, and the apps on this TV |
 | My PC | Places (Home, Desktop, Downloads, Videos, Music, Pictures, Documents) and drives. Folders show videos, music, and photos; other files are counted but hidden |
 | Media player | Video and music with resume, ±10 s, Next/Previous in the folder, and autoplay next. Photos with left/right browsing, a 5-second slideshow, and Set as wallpaper |
 | My List | Titles you saved |
@@ -64,7 +64,7 @@ The browser Back button and the Android back gesture also go back one screen.
 | Preview | A 60-second preview. The controls hide after 4 seconds; any key brings them back. Left and right skip 10 seconds. Captions and Up next are optional |
 | Ambient | After two minutes idle, slow artwork and the time. Any key returns |
 
-Weather is a sample panel. The preview is a timer on generated artwork. Saved titles, preview progress, and settings stay in this browser. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
+Weather is looked up while the app is open and is not written down. The preview is a timer on generated artwork. My List and the launcher's own settings stay in this browser. The sites you open, and any sign-in inside the Windows app, are dropped when you close it. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
 
 ### Setup
 
@@ -117,7 +117,7 @@ Scrolling down hides the top bar. Scrolling up, or reaching the top of the page,
 
 ### Apps and Chrome shortcuts
 
-Streaming tiles open the service in Chrome, in its own full-screen app window. Alt+F4 closes it and brings you back. If you already made a Chrome shortcut with the same name (Netflix, for example), the tile opens your shortcut instead, so you stay signed in.
+A site you add, or a shortcut you already made in Chrome, opens in its own window. Alt+F4 closes it and brings you back. Smart TV does not ship tiles for other companies' services.
 
 To add any site: in Chrome, open it, then ⋮ → **Cast, save, and share** → **Create shortcut** (tick *Open as window*) or **Install page as app**. Then in Smart TV choose Settings → About & reset → **Look for new Chrome shortcuts**. Chrome and Edge shortcuts on the desktop and in the Start menu both count.
 
