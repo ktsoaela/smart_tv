@@ -186,6 +186,7 @@ const ui = {
   volTimer: 0,
   volBusy: false,
   slideTimer: 0,
+  pointerScroll: false,
   mediaSaveAt: 0,
   wallUrl: "",
   signalTimer: 0
@@ -1537,6 +1538,19 @@ function move(dir) {
   }
   focusEl(preferInZone(cur, next, all, dir));
   sound("move");
+}
+
+function revealTopbar() {
+  const screen = document.getElementById("screen");
+  if (!screen || state.screen !== "home" || !document.body.classList.contains("in-rows")) return;
+  const hero = screen.querySelector(".hero");
+  if (!hero) return;
+  const top = hero.getBoundingClientRect().top - screen.getBoundingClientRect().top;
+  if (top <= -screen.clientHeight * 0.18) return;
+  document.body.classList.remove("in-rows");
+  const heroBtn = hero.querySelector("[data-key]");
+  const inRows = document.activeElement && document.activeElement.closest && document.activeElement.closest(".rows");
+  if (heroBtn && inRows) focusEl(heroBtn, { noScroll: true });
 }
 
 function scrollFor(el) {
@@ -3440,10 +3454,20 @@ function init() {
       updatePlayerUi();
     }
   });
+  document.addEventListener("wheel", (event) => {
+    if (Math.abs(event.deltaY) >= Math.abs(event.deltaX)) ui.pointerScroll = true;
+  }, { passive: true, capture: true });
+  document.addEventListener("touchmove", () => { ui.pointerScroll = true; }, { passive: true, capture: true });
   document.addEventListener("scroll", (event) => {
-    if (event.target && event.target.id === "screen") {
-      document.body.classList.toggle("scrolled", event.target.scrollTop > 24);
+    const target = event.target;
+    if (!target || target.id !== "screen") {
+      if (target && target.classList && target.classList.contains("scroller")) ui.pointerScroll = false;
+      return;
     }
+    document.body.classList.toggle("scrolled", target.scrollTop > 24);
+    if (!ui.pointerScroll) return;
+    ui.pointerScroll = false;
+    revealTopbar();
   }, true);
   window.addEventListener("blur", cancelPress);
   window.addEventListener("focus", onReturn);
