@@ -16,7 +16,7 @@
 
 ---
 
-**Smart TV** puts a 10-foot home screen in a browser: shelves, apps, search, a list, and a one-minute preview. Arrow keys and the pad in the corner move the focus.
+**Smart TV** puts a 10-foot home screen in a browser: immersive rows, apps, search, a list, and a one-minute preview. Arrow keys, a gamepad, a TV remote, or the pad in the corner move the focus.
 
 A television gets Google TV from a Google TV Streamer on HDMI, or from a set that already includes Google TV. This repository is the launcher you can open and try.
 
@@ -24,10 +24,13 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 
 ## Why Smart TV
 
-- **Shows a home screen** with a featured title and shelves you can move through.
-- **Takes a remote** from the keyboard or from the pad on the page.
-- **Keeps your list** and preview position in this browser.
-- **Lists the hardware path** for a Google TV Streamer and for sets that ship with Google TV.
+- **Feels like a current TV home screen.** Artwork fills the screen and follows focus, the featured title rotates, and rows keep their place.
+- **Moves like a remote expects.** Focus goes to the nearest item in each direction, each row remembers where you were, and the edge of a row bounces. Hold OK for options.
+- **Takes any input.** Keyboard, the on-screen pad, a gamepad, LG and Samsung TV remotes, a mouse, touch, and the browser Back button.
+- **Searches from the couch.** An on-screen keyboard, genre shortcuts, live results, and voice where the browser supports it.
+- **Plays a preview properly.** Controls hide on their own, skip 10 seconds, captions, and an Up next countdown.
+- **Respects the room.** Same layout at 1080p and 4K, reduce-motion and larger-text settings, high-contrast focus, and an ambient screen when idle.
+- **Keeps your list,** progress, and settings in this browser.
 
 ---
 
@@ -51,8 +54,8 @@ py -m http.server 8787
 | Path | Purpose |
 | --- | --- |
 | `index.html` | Launcher page |
-| `css/tv.css` | TV layout and focus ring |
-| `js/tv.js` | Screens, remote, list, preview |
+| `css/tv.css` | 10-foot layout, glass materials, focus motion |
+| `js/tv.js` | Screens, spatial focus, input, list, preview |
 | `docs/guide.md` | Keys, network URL, Google TV hardware |
 | `assets/logo.svg` | Mark |
 

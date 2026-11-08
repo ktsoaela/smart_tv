@@ -1,6 +1,6 @@
 # Guide
 
-**Smart TV** is a browser launcher with a remote, shelves, a list, and a one-minute preview. A television gets Google TV from a streaming device or from a set that already includes it.
+**Smart TV** is a browser launcher with a remote, an immersive home screen, search, a list, and a one-minute preview. A television gets Google TV from a streaming device or from a set that already includes it.
 
 ## Run it
 
@@ -26,26 +26,46 @@ On this computer that address is `http://localhost:8787`. On the TV, use this co
 
 | Key | Action |
 | --- | --- |
-| Arrow keys | Move focus |
-| Enter or Space | Press the focused control |
-| Esc | Go back |
-| Backspace | Go back. In search, it deletes text first |
+| Arrow keys | Move focus. Focus goes to the nearest item in that direction, and each row remembers where you were |
+| Enter | Select. Hold it for options (play from start, My List, remove from Continue watching) |
+| Esc or Backspace | Go back. On Home, Back returns to the top |
+| M | Options for the focused title |
+| / | Search |
 | F | Fullscreen |
-| On-screen pad | Up, down, left, right, OK, Back, and Home |
+| K, J, L | In the player: play or pause, back 10 s, forward 10 s |
+| On-screen remote | The round button in the corner opens a pad with arrows, OK, Back, Home, Options, and Play/Pause |
+| Gamepad | D-pad or left stick moves, A selects, B goes back, Y opens options, X plays or pauses |
+| TV remote | Back and the media keys work in LG webOS and Samsung Tizen browsers |
+| Mouse | Pointing focuses a tile and tilts it. Right-click opens options |
+
+The browser Back button and the Android back gesture also go back one screen.
 
 ## Screens
 
 | Screen | What you get |
 | --- | --- |
-| Home | Featured title, Continue watching, Apps, and shelves |
-| Apps | Cinema, Series, Live Desk, Spotlight, Your List, Weather |
-| Your list | Titles you saved |
-| Search | Titles, genres, and app names |
-| Settings | Google TV Streamer, a set that already has Google TV, and this launcher |
-| Details | Play, add to your list, or go back |
-| Preview | A 60-second color preview with a timer |
+| Home | A featured title that rotates every few seconds (left and right switch it), then Continue watching, Top 10, apps, Live now, a "Because you watched" row, Movies, Series, and From My List. The artwork behind the screen follows the focused tile, and a panel at the top describes it |
+| Apps | Cinema, Series, Live Desk, Spotlight, My List, Weather |
+| My List | Titles you saved |
+| Search | An on-screen keyboard, genre shortcuts, and live results. A physical keyboard types too. The microphone key uses the browser's speech recognition where it exists |
+| Settings | Display and motion, sound, playback, remote and keys, Get Google TV, and reset |
+| Details | Resume, play from start, My List, episodes for series, and More like this |
+| Preview | A 60-second preview. The controls hide after 4 seconds; any key brings them back. Left and right skip 10 seconds. Captions and Up next are optional |
+| Ambient | After two minutes idle, slow artwork and the time. Any key returns |
 
-Weather is a sample panel. The preview is a timer on a title card. Saved titles and preview progress stay in this browser. **Reset demo data** on Settings restores the sample Continue watching row and clears Your list.
+Weather is a sample panel. The preview is a timer on generated artwork. Saved titles, preview progress, and settings stay in this browser. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
+
+### Settings
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| Reduce motion | Off | Turns off zoom, parallax, and slide transitions. The system setting also applies |
+| Larger text | Off | Raises type and tiles by about 12 percent |
+| Ambient mode | On | Artwork and the time after two minutes idle |
+| Navigation sounds | Off | A soft tick on move and a tone on select |
+| Autoplay next | On | An 8-second countdown to the next title when a preview ends |
+| Captions | Off | Sample captions in the player |
+| On-screen remote | Closed | Keeps the remote pad open |
 
 ## Google TV on a television
 
