@@ -36,7 +36,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Smart TV"
+      "shortcutName": "Smart TV",
+      "artifactName": "Smart-TV-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "Smart-TV.${ext}"
     }
   }
 }
