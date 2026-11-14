@@ -5,9 +5,8 @@
 // - The UI is the same front end as the browser version (index.html, css/, js/),
 //   served from the private app://tv scheme. Its /api/* calls are answered here (api.js).
 // - Streaming apps open inside the TV window by default (apps.js): web views laid over the
-//   TV page. A site opens in your Chrome window, fitted over the TV. If Chrome cannot
-//   be fitted, the page opens in an in-memory session that is dropped when Smart TV
-//   closes. Protected video needs the Widevine build of Electron from castLabs; see docs/electron.md.
+//   TV page. The in-TV session is kept in memory only. Protected video needs the
+//   Widevine build of Electron from castLabs; see docs/electron.md.
 // - Optional: open apps in Chrome instead, either a separate kiosk "TV" profile that the
 //   remote's Back closes, or your everyday Chrome profile.
 
@@ -19,7 +18,6 @@ const { spawn, execFile } = require("child_process");
 const { createApi, mimeOf, powershell } = require("./api");
 const { Audio } = require("./audio");
 const { AppViews, hudFile } = require("./apps");
-const { ChromeFrame } = require("./chrome-frame");
 
 const ROOT = path.resolve(__dirname, "..");
 const APP_ICON = path.join(ROOT, "assets", "icon.ico");
@@ -31,8 +29,6 @@ const DEFAULTS = { kiosk: true, startWithWindows: false, launchMode: "inside" };
 // Remote navigation on ordinary websites: the arrow keys move focus between links and
 // buttons. The TV page handles its own arrows (and cancels the default), so it's unaffected.
 app.commandLine.appendSwitch("enable-spatial-navigation");
-// Sites treat a browser that says Electron, or that exposes navigator.webdriver, as a bot.
-app.commandLine.appendSwitch("disable-blink-features", "AutomationControlled");
 if (process.platform === "win32") app.setAppUserModelId("com.ktsoaela.smarttv");
 
 protocol.registerSchemesAsPrivileged([
@@ -136,31 +132,9 @@ function tvProfileDir() {
   return path.join(app.getPath("userData"), "chrome-tv-profile");
 }
 
-let frame;
-let leavingTv = false;
-
-function holdKiosk() {
-  if (!win || win.isDestroyed() || WINDOWED || leavingTv || holdKiosk.busy) return;
-  holdKiosk.busy = true;
-  const apply = () => {
-    if (!win || win.isDestroyed() || WINDOWED || leavingTv) return;
-    if (settings.kiosk) {
-      if (!win.isKiosk()) win.setKiosk(true);
-      if (!win.isFullScreen()) win.setFullScreen(true);
-    } else if (!win.isFullScreen()) {
-      win.setFullScreen(true);
-    }
-  };
-  apply();
-  setTimeout(apply, 80);
-  setTimeout(apply, 280);
-  setTimeout(apply, 700);
-  setTimeout(() => { holdKiosk.busy = false; }, 800);
-}
-
 function registerBackKey() {
-  // Only while a Chrome window we opened is in front: Esc (the remote's Back) returns to Home.
-  if (!globalShortcut.isRegistered("Escape")) globalShortcut.register("Escape", onBackKey);
+  // Only while the TV Chrome window is open: Esc (the remote's Back) returns to Home.
+  if (!globalShortcut.isRegistered("Escape")) globalShortcut.register("Escape", closeTracked);
 }
 
 function unregisterBackKey() {
@@ -174,39 +148,19 @@ function closeTracked() {
   execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
 }
 
-function onBackKey() {
-  if (frame && frame.isOpen()) {
-    unregisterBackKey();
-    frame.close().finally(() => bringBack("app-home", true));
-    return;
-  }
-  closeTracked();
-}
-
-function bringBack(reason, inside = false) {
-  leavingTv = false;
+function bringBack(reason) {
   if (!win) return;
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
-  holdKiosk();
-  win.webContents.send("tv-event", { type: "returned", reason, inside: !!inside });
+  applyKiosk();
+  win.webContents.send("tv-event", { type: "returned", reason });
 }
 
 async function openStreaming(url, meta = {}) {
   const mode = ["inside", "tv", "chrome"].includes(meta.mode) ? meta.mode : settings.launchMode;
-  if (mode === "inside") {
-    if (frame) {
-      const docked = await frame.open(url);
-      if (docked) {
-        registerBackKey();
-        holdKiosk();
-        return { ok: true, inside: true, chrome: true };
-      }
-    }
-    if (appViews) {
-      return appViews.open(meta.id || new URL(url).origin, meta.name || new URL(url).hostname, url, { zoom: meta.zoom, layout: meta.layout });
-    }
+  if (mode === "inside" && appViews) {
+    return appViews.open(meta.id || new URL(url).origin, meta.name || new URL(url).hostname, url, { zoom: meta.zoom, layout: meta.layout });
   }
   const browser = browserPath();
   if (!browser) {
@@ -255,7 +209,6 @@ async function openShortcut(lnk) {
 
 async function switchSource(target) {
   if (!win) return;
-  leavingTv = true;
   win.setKiosk(false);
   win.setFullScreen(false);
   if (target === "browser") {
@@ -277,7 +230,6 @@ function applyKiosk() {
 
 function quit() {
   quitting = true;
-  if (frame) frame.close();
   closeTracked();
   app.quit();
 }
@@ -346,11 +298,9 @@ function createWindow() {
 
   // Coming back from the desktop or the browser: back to full screen.
   win.on("restore", () => {
-    leavingTv = false;
-    holdKiosk();
+    applyKiosk();
     win.webContents.send("tv-event", { type: "returned", reason: "restored" });
   });
-  win.on("leave-full-screen", () => holdKiosk());
 
   // Links never navigate the TV window; web addresses open in Chrome instead.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -369,11 +319,6 @@ function createWindow() {
       else if (!win.isDestroyed()) win.webContents.send("tv-event", event);
     }
   });
-  frame = new ChromeFrame(win, () => {
-    unregisterBackKey();
-    bringBack("app-closed", true);
-  });
-  frame.onDisturb = () => holdKiosk();
 
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;

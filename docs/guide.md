@@ -64,7 +64,7 @@ The browser Back button and the Android back gesture also go back one screen.
 | Preview | A 60-second preview. The controls hide after 4 seconds; any key brings them back. Left and right skip 10 seconds. Captions and Up next are optional |
 | Ambient | After two minutes idle, slow artwork and the time. Any key returns |
 
-Weather is looked up while the app is open and the place is not written down. The preview is a timer on generated artwork. Saved titles, preview progress, and settings stay in this browser. A page added to Continue watching lasts only until you close the app. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
+Weather is looked up while the app is open and is not written down. The preview is a timer on generated artwork. My List and the launcher's own settings stay in this browser. The sites you open, and any sign-in inside the Windows app, are dropped when you close it. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
 
 ### Setup
 
@@ -117,7 +117,7 @@ Scrolling down hides the top bar. Scrolling up, or reaching the top of the page,
 
 ### Apps and Chrome shortcuts
 
-A site you add, and a shortcut you already made in Chrome or Edge, opens in your Google Chrome, fitted to the TV, so you stay signed in there. Smart TV does not copy that sign-in. Back (Esc) returns Home. It does not start a separate shortcut window and it does not close your other Chrome windows. If the site has to open in the TV's own view, that sign-in stays in memory and is dropped when Smart TV closes.
+A site you add, or a shortcut you already made in Chrome, opens in its own window. Alt+F4 closes it and brings you back. Smart TV does not ship tiles for other companies' services.
 
 To add any site: in Chrome, open it, then ⋮ → **Cast, save, and share** → **Create shortcut** (tick *Open as window*) or **Install page as app**. Then in Smart TV choose Settings → About & reset → **Look for new Chrome shortcuts**. Chrome and Edge shortcuts on the desktop and in the Start menu both count.
 

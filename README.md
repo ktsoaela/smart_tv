@@ -41,8 +41,7 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 - **Feels like a TV.** A volume panel when the volume changes, your desktop wallpaper behind Home, and a Source button for the browser or the desktop.
 - **Is yours to arrange.** Move, rename, hide, or remove any app. Keep titles, links, and files in My List in your own order.
 - **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather, and a wallpaper. The weather lookup is not written down.
-- **Uses the Chrome you are already signed in to.** The site opens inside the Smart TV window, using your Chrome sign-in. It is not a separate window. Back (Esc) closes that page and returns Home. It does not close your other Chrome windows. Smart TV does not copy that sign-in.
-- **Does not keep what you open.** A page in Continue watching lasts only until you close Smart TV. A sign-in in the TV's own view stays in memory, and the old saved session is cleared on the next start. The weather place is not written down. The public page stores nothing. My List and the launcher's own settings stay in this browser.
+- **Does not keep the sites you open.** Sign-ins inside the Windows app live in memory and are gone when Smart TV closes. The public page stores nothing. My List and the launcher's own settings stay in this browser.
 
 ---
 

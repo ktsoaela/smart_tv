@@ -2235,7 +2235,7 @@ function activate(el) {
       openSheet({
         kicker: "TV mode",
         title: "Sign out of all apps?",
-        body: "Every app inside the TV closes. A sign-in made in the TV's own view is forgotten. Your Chrome browser isn't affected.",
+        body: "Every app inside the TV closes and forgets your sign-in. Your Chrome browser isn't affected.",
         actions: [
           { label: "Sign out of all apps", icon: "close", danger: true, run: () => api("/api/clear-app-data", {}).then(() => toast("Signed out of all apps", "check")) },
           { label: "Cancel", icon: "chevL", run: () => {} }
@@ -3262,17 +3262,12 @@ function launchApp(app) {
         let result = {};
         if (app.mode === "program") result = await api("/api/launch-program", { id: app.programId });
         else if (server.electron && app.url) result = await api("/api/open-url", { url: app.url, id: app.id, name: app.name, ...appDisplay(app) });
-        else if (server.electron && app.chromeId && ui.host && ui.host.launchMode === "inside") {
-          hideSignal(200);
-          toast("This shortcut has no site address yet. In Chrome, open the site and create the shortcut again, then look for new shortcuts.", "info");
-          return;
-        }
         else if (app.chromeId) result = await api("/api/launch", { id: app.chromeId });
         else result = await api("/api/open-url", { url: app.url });
         if (result && result.inside) {
+          // The app is already on screen above the TV page (see "app-shown").
           ui.away = true;
           hideSignal(250);
-          if (result.chrome) toast("Signed in with Chrome, inside this window. Back (Esc) returns Home", "info");
           return;
         }
         ui.away = true;
@@ -4585,7 +4580,7 @@ function tvModePane() {
       : "Covers the taskbar and desktop like a TV. Ctrl+Shift+Q always exits.")
     + row("startWithWindows", "Start with Windows", "Opens Smart TV when you sign in to Windows, like a TV box that's always on.")
     + `<h3 class="pane-sub">Streaming apps open in</h3>`
-    + choice("inside", "Inside the TV (recommended)", "Opens the site in your Chrome, inside this window, so you stay signed in there. It does not open a separate window. Smart TV does not keep that sign-in. Back (Esc) returns Home.")
+    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded until you quit. Back goes back. Hold Back and it asks before returning Home. Sign-ins are forgotten when Smart TV closes.")
     + choice("tv", "Chrome, TV profile", "A separate full-screen Chrome. Slower to open. Back (Esc) closes it and returns here.")
     + choice("chrome", "Chrome, your profile", "Uses the accounts already signed in to Chrome. Alt+F4 closes it.")
     + `<p class="wx-status">${icon(h.drm === "ready" ? "check" : "info")}<span>${esc(h.drm === "ready"

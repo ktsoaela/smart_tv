@@ -10,7 +10,6 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { Readable } = require("stream");
-const { installedWebApps, lookup } = require("./chrome-webapps");
 
 const IS_WINDOWS = process.platform === "win32";
 const VIDEO = new Set([".mp4", ".m4v", ".webm", ".mkv", ".mov", ".ogv", ".avi", ".wmv", ".ts", ".m2ts"]);
@@ -219,9 +218,40 @@ function knownAppUrl() {
   return "";
 }
 
-function profileOf(args) {
-  const match = /--profile-directory=(?:"([^"]+)"|(\S+))/.exec(args || "");
-  return (match && (match[1] || match[2])) || "Default";
+// Chrome keeps each installed web app's start address in its sync database
+// (keys "web_apps-dt-<app id>"). Read it so Chrome-made apps can open inside the TV.
+function chromeAppUrls() {
+  const urls = new Map();
+  const dir = path.join(process.env.LOCALAPPDATA || "", "Google", "Chrome", "User Data", "Default", "Sync Data", "LevelDB");
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => /\.(ldb|log)$/i.test(f));
+  } catch {
+    return urls;
+  }
+  const key = "web_apps-dt-";
+  for (const file of files) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(dir, file)).toString("latin1");
+    } catch {
+      continue;
+    }
+    let i = text.indexOf(key);
+    while (i >= 0) {
+      const id = text.slice(i + key.length, i + key.length + 32);
+      const m = /https?:\/\/[\x21-\x7e]+?(?=[^\x21-\x7e]|$)/.exec(text.slice(i + key.length + 32, i + key.length + 320));
+      if (/^[a-p]{32}$/.test(id) && m) {
+        try {
+          urls.set(id, new URL(m[0]).href);
+        } catch {
+          /* not a clean address */
+        }
+      }
+      i = text.indexOf(key, i + key.length);
+    }
+  }
+  return urls;
 }
 
 async function chromeApps(force = false) {
@@ -238,7 +268,7 @@ async function chromeApps(force = false) {
   ].filter(isDir);
   if (!dirs.length) return [];
   const rows = parseRows(await powershell(shortcutScript(dirs, "-Depth 2")));
-  const installed = installedWebApps();
+  const startUrls = chromeAppUrls();
   const apps = new Map();
   for (const row of rows) {
     const args = row.args || "";
@@ -246,14 +276,13 @@ async function chromeApps(force = false) {
     const id = args.split("--app-id=")[1].split(/\s/)[0].replace(/"/g, "");
     if (apps.has(id)) continue;
     const icon = String(row.icon || "").replace(/,-?\d+$/, "");
-    const edge = /msedge/i.test(row.target || "");
     apps.set(id, {
       id,
       name: row.name || id,
       lnk: row.path,
       icon: icon && fs.existsSync(icon) ? icon : "",
-      browser: edge ? "Edge" : "Chrome",
-      url: lookup(installed, id, { profile: profileOf(args), edge }) || knownAppUrl(row.name || "")
+      browser: /msedge/i.test(row.target || "") ? "Edge" : "Chrome",
+      url: startUrls.get(id) || knownAppUrl(row.name || "")
     });
   }
   const data = [...apps.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
@@ -458,14 +487,7 @@ function createApi(host) {
     "POST /api/launch": async (r) => {
       const { id } = await body(r);
       const app = (await chromeApps()).find((a) => a.id === id);
-      if (!app) return fail(404, "That Chrome shortcut is gone");
-      // A shortcut or installed page is just a site. Open that address inside the TV
-      // instead of letting Chrome start its own app window.
-      if (app.url && host.getSettings().launchMode === "inside") {
-        return json(await host.openStreaming(app.url, { id: app.id, name: app.name, mode: "inside" }));
-      }
-      if (host.getSettings().launchMode === "inside") return fail(409, "This shortcut has no site address yet");
-      if (!app.lnk) return fail(404, "That Chrome shortcut is gone");
+      if (!app || !app.lnk) return fail(404, "That Chrome shortcut is gone");
       return json(await host.openShortcut(app.lnk));
     },
     "POST /api/launch-program": async (r) => {
