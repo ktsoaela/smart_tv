@@ -9,12 +9,13 @@
 //   Hold Back (about 0.7 s)                 returns Home from anywhere
 //   Volume keys                             show the TV's volume panel
 //
-// Apps share one in-memory session. It is not written to disk, and it is gone when Smart TV closes.
+// Apps share one saved session, so a sign-in made inside the TV (Google, Netflix, ...) is
+// remembered the next time Smart TV starts. Settings -> TV mode -> Sign out of all apps clears it.
 
 const { WebContentsView, session, ipcMain } = require("electron");
 const path = require("path");
 
-const PARTITION = "tv-apps";
+const PARTITION = "persist:tv-apps";
 const MAX_LOADED = 4;
 const HOLD_MS = 650;
 const PAGE_META_JS = `(() => {
@@ -91,9 +92,6 @@ class AppViews {
   }
 
   prepareSession() {
-    const old = session.fromPartition("persist:tv-apps");
-    old.clearStorageData().catch(() => {});
-    old.clearCache().catch(() => {});
     // Look like regular Chrome: some services refuse anything that says "Electron".
     const ua = this.ses.getUserAgent().replace(/\s(?:Electron|Smart[ -]?TV)\/\S+/gi, "");
     this.ses.setUserAgent(ua);

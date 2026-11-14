@@ -3,202 +3,1183 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Smart TV — a launcher you drive with a remote</title>
-  <meta name="description" content="Smart TV is a 10-foot home screen. Open it in a browser, or run the Windows app and keep streaming apps inside the window." />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#07080b" />
+  <title>Smart TV — the set is this computer</title>
+  <meta name="description" content="Smart TV is a 10-foot home screen for this computer. Open it in a browser or run the Windows app, and drive it with a remote." />
+  <meta property="og:title" content="Smart TV — the set is this computer" />
+  <meta property="og:description" content="A 10-foot home screen. Rows, your apps, search, and the files on this PC. Drive it with a remote." />
+  <meta property="og:type" content="website" />
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #07080b;
-      --card: #12151d;
-      --ink: #f5f7fb;
-      --muted: rgba(232, 238, 249, 0.72);
+      --ink: #f4f6fb;
+      --muted: rgba(232, 238, 249, 0.68);
+      --faint: rgba(232, 238, 249, 0.46);
       --line: rgba(255, 255, 255, 0.12);
-      --accent: #9ec1ff;
-      --accent-deep: #6f97e8;
+      --paper: #e8eef9;
+      --warm: #f3e2c8;
+      --glow: rgba(122, 162, 255, 0.55);
+      --serif: "EB Garamond", "Palatino Linotype", Palatino, Georgia, serif;
+      --sans: "EB Garamond", "Palatino Linotype", Palatino, Georgia, serif;
+      --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
     }
+
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
       color: var(--ink);
       background: var(--bg);
-      font: 17px/1.55 "Segoe UI", system-ui, sans-serif;
+      font: 19px/1.45 var(--sans);
+      font-variant-numeric: oldstyle-nums;
+      -webkit-font-smoothing: antialiased;
     }
-    a { color: inherit; }
     img { max-width: 100%; display: block; }
-    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
-    header.bar {
-      position: sticky; top: 0; z-index: 3;
-      background: rgba(7, 8, 11, 0.88);
-      backdrop-filter: blur(12px);
+    a { color: inherit; }
+    button, input { font: inherit; color: inherit; }
+    ::selection { background: var(--paper); color: #10131a; }
+
+    .skip {
+      position: absolute;
+      left: 16px;
+      top: -40px;
+      z-index: 20;
+      background: var(--paper);
+      color: #10131a;
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    .skip:focus { top: 12px; }
+
+    .wrap { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+    .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+
+    .grain {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.55'/></svg>");
+      mix-blend-mode: overlay;
+    }
+    main, .bar, .site-foot { position: relative; z-index: 1; }
+
+    .bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
       border-bottom: 1px solid transparent;
+      transition: background .3s var(--ease), border-color .3s var(--ease);
     }
-    .nav {
+    .bar.is-stuck {
+      background: rgba(7, 8, 11, 0.78);
+      backdrop-filter: blur(16px) saturate(140%);
+      border-bottom-color: var(--line);
+    }
+    .bar-in {
       min-height: 72px;
-      display: flex; align-items: center; gap: 28px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
     }
-    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 20px; letter-spacing: -0.03em; }
-    .brand img { width: 36px; height: 36px; background: #1a1a1a; border-radius: 8px; padding: 4px; }
-    .nav-links { display: flex; gap: 22px; margin-left: 12px; }
-    .nav-links a { text-decoration: none; color: var(--muted); font-size: 15px; }
-    .nav-links a:hover { color: var(--ink); }
-    .nav .end { margin-left: auto; }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-height: 46px; padding: 0 22px; border-radius: 999px;
-      text-decoration: none; font-weight: 700; border: 1px solid transparent;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      font-size: 18px;
     }
-    .btn.fill { background: var(--accent); color: #0b0d12; }
-    .btn.fill:hover { background: white; }
-    .btn.line { background: transparent; color: var(--ink); border-color: var(--line); }
-    .hero { padding: 78px 0 28px; text-align: center; }
-    .kicker { margin: 0 0 18px; letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; color: var(--accent); }
-    h1 { margin: 0; font-size: clamp(46px, 6.4vw, 72px); line-height: .98; letter-spacing: -0.045em; font-weight: 760; }
-    h1 .accent { display: block; color: var(--accent); }
-    .sub { max-width: 640px; margin: 22px auto 0; color: var(--muted); font-size: 20px; }
-    .hero-actions { display: flex; justify-content: center; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
-    .mark {
-      width: 128px; height: 128px; margin: 42px auto 0;
-      background: #1a1a1a; border-radius: 28px; padding: 18px;
+    .brand img {
+      width: 34px;
+      height: 34px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .links { display: flex; gap: 22px; }
+    .links a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .links a:hover { color: var(--ink); }
+    .bar-end { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .menu-btn {
+      display: none;
+      background: transparent;
       border: 1px solid var(--line);
+      border-radius: 999px;
+      min-height: 40px;
+      padding: 0 14px;
+      cursor: pointer;
     }
-    section { padding: 72px 0; }
-    section.wash { background: #0d1016; }
-    h2 { margin: 0 0 10px; font-size: clamp(32px, 4vw, 44px); letter-spacing: -0.035em; line-height: 1.05; }
-    .center { text-align: center; }
-    .lead { color: var(--muted); margin: 0 auto 34px; max-width: 640px; }
-    .center .lead { margin-left: auto; margin-right: auto; }
-    .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-    .tool {
-      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-      padding: 18px 16px 16px; min-height: 148px;
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid transparent;
+      transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
     }
-    .tool strong { display: block; margin-bottom: 6px; }
-    .tool span { color: var(--muted); font-size: 15px; }
-    .run { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; text-align: left; }
-    .card {
-      background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px;
+    .btn-fill { background: var(--paper); color: #10131a; }
+    .btn-fill:hover { background: white; }
+    .btn-line { background: transparent; border-color: var(--line); }
+    .btn-line:hover { border-color: rgba(255, 255, 255, 0.4); }
+    :focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
     }
-    .card .os { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
-    .card h3 { margin: 8px 0; font-size: 28px; letter-spacing: -0.03em; }
-    .card p { margin: 0 0 14px; color: var(--muted); }
+    .hero::before {
+      content: "";
+      position: absolute;
+      width: 70vw;
+      height: 70vw;
+      right: -10vw;
+      top: -10vw;
+      background: radial-gradient(closest-side, var(--glow), transparent 72%);
+      filter: blur(8px);
+      pointer-events: none;
+      transition: background .6s var(--ease);
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 460px) minmax(0, 1fr);
+      gap: 40px;
+      align-items: center;
+      min-height: calc(100vh - 72px);
+      padding: 28px 0 56px;
+    }
+    .kicker {
+      margin: 0 0 16px;
+      color: var(--warm);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    h1, h2, h3, .chapter, .contents a { scroll-margin-top: 88px; }
+    h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(56px, 6.4vw, 92px);
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+    }
+    h1 em {
+      font-style: italic;
+      color: var(--warm);
+    }
+    .lede {
+      max-width: 420px;
+      margin: 22px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    .inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--faint);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .set { position: relative; width: min(740px, 100%); margin-left: auto; padding: 12px 28px 8px 8px; }
+    .space {
+      position: absolute;
+      inset: -6% -8% 8%;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(1.5px 1.5px at 8% 18%, rgba(255, 255, 255, 0.85) 50%, transparent 52%),
+        radial-gradient(1px 1px at 18% 62%, rgba(255, 255, 255, 0.55) 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 32% 28%, rgba(243, 226, 200, 0.8) 50%, transparent 52%),
+        radial-gradient(1px 1px at 46% 74%, rgba(255, 255, 255, 0.45) 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 61% 16%, rgba(255, 255, 255, 0.7) 50%, transparent 52%),
+        radial-gradient(1px 1px at 72% 48%, rgba(255, 255, 255, 0.5) 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 84% 30%, rgba(243, 226, 200, 0.75) 50%, transparent 52%),
+        radial-gradient(1px 1px at 90% 70%, rgba(255, 255, 255, 0.4) 50%, transparent 52%),
+        radial-gradient(1px 1px at 24% 40%, rgba(255, 255, 255, 0.35) 50%, transparent 52%),
+        radial-gradient(1px 1px at 55% 52%, rgba(255, 255, 255, 0.4) 50%, transparent 52%);
+    }
+    .floor {
+      position: absolute;
+      left: 6%;
+      right: 8%;
+      bottom: 36px;
+      height: 72px;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .floor::before {
+      content: "";
+      position: absolute;
+      left: -8%;
+      right: -8%;
+      top: 0;
+      height: 170px;
+      background:
+        linear-gradient(rgba(158, 193, 255, 0.32) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(158, 193, 255, 0.32) 1px, transparent 1px);
+      background-size: 56px 32px;
+      transform: perspective(420px) rotateX(74deg);
+      transform-origin: center top;
+      -webkit-mask-image: linear-gradient(to bottom, #000 8%, transparent 72%);
+      mask-image: linear-gradient(to bottom, #000 8%, transparent 72%);
+    }
+    .glow {
+      position: absolute;
+      inset: 6% -6% 12%;
+      background: radial-gradient(closest-side, var(--glow), transparent 70%);
+      filter: blur(18px);
+      z-index: 0;
+    }
+    .stage3d {
+      position: relative;
+      z-index: 1;
+      perspective: 1100px;
+      perspective-origin: 50% 42%;
+    }
+    .hull {
+      position: relative;
+      transform-style: preserve-3d;
+      transform: rotateY(-16deg) rotateX(8deg);
+      animation: drift 10s ease-in-out infinite;
+    }
+    @keyframes drift {
+      0%, 100% { transform: rotateY(-16deg) rotateX(8deg) translateY(0); }
+      50% { transform: rotateY(-11deg) rotateX(5deg) translateY(-14px); }
+    }
+    .bezel {
+      position: relative;
+      z-index: 1;
+      transform-style: preserve-3d;
+      padding: 14px 14px 20px;
+      border-radius: 26px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 18%),
+        linear-gradient(180deg, #323846, #12141a 46%);
+      box-shadow:
+        0 40px 70px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    }
+    .bezel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: #10131a;
+      transform: translateZ(-46px);
+    }
+    .led {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      border-radius: 50%;
+      background: #9ec1ff;
+      box-shadow: 0 0 8px #9ec1ff;
+    }
+    .pedestal {
+      width: 16%;
+      height: 28px;
+      margin: -1px auto 0;
+      background: linear-gradient(#2a2e36, #15171c);
+      clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+    }
+    .plinth {
+      width: 28%;
+      height: 7px;
+      margin: 0 auto;
+      border-radius: 0 0 8px 8px;
+      background: #1c1f26;
+    }
+    .caption {
+      margin: 16px 0 0;
+      text-align: center;
+      color: var(--faint);
+      font-size: 13px;
+    }
+
+    .screen {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #07080b;
+      color: #f5f7fb;
+      container-type: inline-size;
+    }
+    .screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background: linear-gradient(118deg, rgba(255, 255, 255, 0.16), transparent 28%, transparent 62%, rgba(255, 255, 255, 0.05));
+    }
+    .canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 960px;
+      height: 540px;
+      display: flex;
+      flex-direction: column;
+      transform-origin: top left;
+      transform: scale(calc(100cqi / 960px));
+    }
+    .poster, .scrim { position: absolute; inset: 0; }
+    .poster { transition: opacity .45s var(--ease); }
+    .scrim {
+      background:
+        linear-gradient(90deg, rgba(7, 8, 11, 0.82) 0%, rgba(7, 8, 11, 0.15) 58%, transparent 100%),
+        linear-gradient(180deg, rgba(7, 8, 11, 0.55), transparent 28%, rgba(7, 8, 11, 0.88));
+    }
+    .art-low {
+      background:
+        radial-gradient(circle at 78% 32%, rgba(158, 193, 255, 0.85), transparent 26%),
+        repeating-linear-gradient(90deg, transparent 0 18px, rgba(122, 162, 255, 0.15) 18px 19px),
+        linear-gradient(165deg, #1a2d55, #10182a 42%, #07080b);
+    }
+    .art-harbor {
+      background:
+        radial-gradient(ellipse at 50% 100%, rgba(110, 200, 255, 0.35), transparent 46%),
+        repeating-linear-gradient(180deg, transparent 0 22px, rgba(110, 200, 255, 0.18) 22px 23px),
+        linear-gradient(180deg, #071018, #123048 70%, #071018);
+    }
+    .art-window {
+      background:
+        linear-gradient(180deg, transparent 30%, rgba(7, 8, 11, 0.2)),
+        radial-gradient(circle at 62% 42%, rgba(232, 238, 220, 0.85) 0 9%, transparent 10%),
+        linear-gradient(160deg, #243024, #1c2418 40%, #10160f);
+    }
+    .art-salt {
+      background:
+        radial-gradient(circle at 70% 60%, transparent 0 8%, rgba(62, 199, 194, 0.35) 9% 10%, transparent 11%),
+        radial-gradient(circle at 70% 60%, transparent 0 18%, rgba(62, 199, 194, 0.28) 19% 20%, transparent 21%),
+        radial-gradient(circle at 70% 60%, transparent 0 30%, rgba(62, 199, 194, 0.2) 31% 32%, transparent 33%),
+        linear-gradient(165deg, #102028, #07141a);
+    }
+    .chrome, .feature, .shelf { position: relative; z-index: 1; }
+    .chrome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 26px 32px 0;
+      font-size: 16px;
+    }
+    .tabs { display: flex; align-items: center; gap: 18px; color: rgba(245, 247, 251, 0.72); }
+    .tabs .on {
+      color: white;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      padding: 6px 14px;
+    }
+    .chrome-end { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #e8eef9;
+      color: #10131a;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .feature { margin-top: auto; padding: 0 36px; max-width: 640px; }
+    .feature .eyebrow {
+      margin: 0 0 8px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 13px;
+      color: rgba(243, 226, 200, 0.9);
+    }
+    .feature h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 64px;
+      line-height: 0.92;
+      letter-spacing: -0.03em;
+    }
+    .feature .meta, .feature .blurb { margin: 10px 0 0; font-size: 16px; color: rgba(245, 247, 251, 0.78); }
+    .feature .blurb {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .pills { display: flex; gap: 10px; margin-top: 18px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: white;
+      color: #10131a;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .pill.ghost { background: rgba(255, 255, 255, 0.14); color: white; }
+    .pill.play { box-shadow: 0 0 0 3px #07080b, 0 0 0 5px #fff; }
+    .shelf { padding: 28px 32px 32px; }
+    .shelf p, .row-label {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .row { display: flex; gap: 14px; }
+    .wide, .tall { position: relative; overflow: hidden; }
+    .wide::before, .tall::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 58%;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+    }
+    .wide {
+      flex: 0 0 32%;
+      aspect-ratio: 16 / 9;
+      border-radius: 12px;
+    }
+    .wide b, .tall b, .barline, .tall .rank { z-index: 1; }
+    .wide b, .tall b {
+      position: absolute;
+      left: 12px;
+      bottom: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      text-shadow: 0 1px 8px #000;
+    }
+    .barline {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 8px;
+      height: 4px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.28);
+    }
+    .wide b { bottom: 26px; }
+    .barline > i { display: block; height: 100%; background: white; width: var(--p); }
+
+    .contents {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .contents-in {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      padding: 16px 0;
+    }
+    .contents a {
+      text-decoration: none;
+      color: var(--faint);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .contents a:hover { color: var(--ink); }
+    .contents b {
+      display: block;
+      margin-bottom: 3px;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 22px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ink);
+    }
+
+    section { padding: 96px 0; }
+    .center-head { max-width: 640px; margin-bottom: 42px; }
+    h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(40px, 5vw, 64px);
+      line-height: 0.96;
+      letter-spacing: -0.03em;
+    }
+    .center-head p { margin: 14px 0 0; color: var(--muted); font-size: 18px; }
+
+    .story-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1.18fr);
+      gap: 48px;
+      align-items: center;
+    }
+    .chapters { display: flex; flex-direction: column; }
+    .chapter {
+      text-align: left;
+      background: transparent;
+      border: 0;
+      border-top: 1px solid var(--line);
+      padding: 16px 8px 16px 0;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .chapter:last-child { border-bottom: 1px solid var(--line); }
+    .chapter strong {
+      display: block;
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 18px;
+    }
+    .chapter .num {
+      font-family: var(--serif);
+      color: var(--warm);
+      margin-right: 10px;
+      font-weight: 400;
+    }
+    .chapter .desc {
+      display: none;
+      margin: 8px 0 0 34px;
+      max-width: 42ch;
+      color: var(--muted);
+      font-size: 15.5px;
+    }
+    .chapter.is-on { color: var(--ink); }
+    .chapter.is-on .desc { display: block; }
+    .chapter.is-on strong { font-family: var(--serif); font-size: 28px; font-weight: 400; }
+
+    .stage-set { position: relative; width: min(680px, 100%); margin-left: auto; padding: 12px 28px 8px 8px; }
+    .scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .35s var(--ease); }
+    .stage[data-scene="home"] .scene-home,
+    .stage[data-scene="remote"] .scene-remote,
+    .stage[data-scene="apps"] .scene-apps,
+    .stage[data-scene="files"] .scene-files,
+    .stage[data-scene="sources"] .scene-sources {
+      opacity: 1;
+      visibility: visible;
+    }
+    .scene-pad { padding: 36px; height: 100%; display: flex; flex-direction: column; }
+    .mini-nav {
+      display: flex;
+      gap: 18px;
+      font-size: 16px;
+      color: rgba(245, 247, 251, 0.7);
+      margin-bottom: 20px;
+    }
+    .mini-nav .on { color: white; }
+    .tall {
+      flex: 0 0 17%;
+      aspect-ratio: 2 / 3;
+      border-radius: 12px;
+    }
+    .tall .rank {
+      position: absolute;
+      left: 10px;
+      top: 4px;
+      font-family: var(--serif);
+      font-size: 34px;
+      line-height: 1;
+    }
+    .c-harbor { background: linear-gradient(165deg, #8fd4ff, #102030 58%); }
+    .c-low { background: linear-gradient(165deg, #b7cdff, #10182a 60%); }
+    .c-night { background: linear-gradient(165deg, #ffb07a, #241610 58%); }
+    .c-copper { background: linear-gradient(165deg, #e0a56a, #141c28 60%); }
+    .c-window { background: linear-gradient(165deg, #d5e8b0, #1c2418 60%); }
+    .c-salt { background: linear-gradient(165deg, #7ee0da, #102028 60%); }
+    .c-glass { background: linear-gradient(165deg, #f0b6cc, #2a1c28 58%); }
+    .grow { margin-top: auto; }
+
+    .scene-remote { background: #07080b; }
+    .scene-remote .wide,
+    .scene-home .wide { flex: 1 1 0; }
+    .hop-row { position: relative; margin-top: 28px; }
+    .ring {
+      position: absolute;
+      top: -8px;
+      bottom: -8px;
+      width: 23%;
+      border-radius: 14px;
+      border: 3px solid white;
+      box-shadow: 0 0 0 6px rgba(158, 193, 255, 0.35);
+      animation: hop 7s var(--ease) infinite;
+    }
+    @keyframes hop {
+      0%, 16% { left: 0; }
+      22%, 40% { left: 25.5%; }
+      46%, 64% { left: 51%; }
+      70%, 88% { left: 76.5%; }
+      100% { left: 0; }
+    }
+    .hint {
+      margin-top: auto;
+      font-size: 18px;
+      color: rgba(245, 247, 251, 0.8);
+    }
+
+    .scene-apps { background: #10141c; }
+    .site-bar {
+      display: flex;
+      justify-content: space-between;
+      padding: 22px 28px;
+      font-size: 16px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .site-art { position: absolute; inset: 12% 8% 28%; border-radius: 16px; }
+    .site-title {
+      position: absolute;
+      left: 12%;
+      bottom: 34%;
+      font-family: var(--serif);
+      font-size: 56px;
+    }
+    .ask {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      bottom: 6%;
+      padding: 22px 24px;
+      border-radius: 16px;
+      background: rgba(18, 21, 29, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .ask p { margin: 0; font-size: 26px; }
+    .ask div { display: flex; gap: 10px; }
+    .ask span {
+      min-width: 108px;
+      text-align: center;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 15px;
+    }
+    .ask .hot {
+      background: white;
+      color: #10131a;
+      box-shadow: 0 0 0 3px #10141c, 0 0 0 5px #fff;
+    }
+    .open-mark {
+      position: absolute;
+      top: 16%;
+      right: 12%;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #34c759;
+      color: #06210e;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-weight: 700;
+    }
+
+    .scene-files { background: #0c1016; }
+    .path { margin: 0 0 16px; font-size: 16px; color: rgba(245, 247, 251, 0.7); }
+    .files {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .file {
+      aspect-ratio: 4 / 3;
+      border-radius: 12px;
+      background: #171c26;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      font-size: 16px;
+      position: relative;
+    }
+    .file.on {
+      box-shadow: 0 0 0 3px #0c1016, 0 0 0 5px #fff;
+    }
+    .file small { color: rgba(245, 247, 251, 0.62); font-size: 13px; }
+    .file .barline { position: relative; left: auto; right: auto; bottom: auto; margin-top: 10px; }
+
+    .scene-sources {
+      display: flex;
+      align-items: stretch;
+      gap: 16px;
+      padding: 72px 36px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(158, 193, 255, 0.16), transparent 40%),
+        #07080b;
+    }
+    .hdmi {
+      flex: 1;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      background: #12151c;
+    }
+    .hdmi b { font-family: var(--serif); font-size: 36px; font-weight: 400; }
+    .hdmi span { font-size: 13px; color: rgba(245, 247, 251, 0.65); letter-spacing: 0.08em; text-transform: uppercase; }
+    .hdmi.on {
+      background: linear-gradient(180deg, #243044, #12151c);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(158, 193, 255, 0.4);
+    }
+
+    .specs { display: grid; grid-template-columns: 1fr 1fr; }
+    .specs div {
+      padding: 28px 36px 28px 0;
+      border-top: 1px solid var(--line);
+    }
+    .specs div:nth-child(even) {
+      padding: 28px 0 28px 36px;
+      border-left: 1px solid var(--line);
+    }
+    .specs dt {
+      font-family: var(--serif);
+      font-size: clamp(28px, 3vw, 36px);
+      font-weight: 400;
+    }
+    .specs dd { margin: 8px 0 0; color: var(--muted); max-width: 46ch; }
+
+    #run { padding-top: 40px; }
+    .runs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .run {
+      background: #10131a;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 26px;
+    }
+    .os {
+      margin: 0;
+      color: var(--warm);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .run h3 {
+      margin: 8px 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 36px;
+    }
+    .run p { margin: 0 0 16px; color: var(--muted); }
     pre {
-      margin: 0; padding: 14px 16px; border-radius: 12px;
-      background: #07080b; border: 1px solid var(--line);
-      overflow: auto; font: 14px/1.5 Consolas, "Cascadia Mono", monospace;
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #07080b;
+      border: 1px solid var(--line);
+      overflow: auto;
+      font: 14px/1.55 Consolas, "Cascadia Mono", ui-monospace, monospace;
     }
-    .fine { color: var(--muted); font-size: 14px; margin: 22px auto 0; max-width: 720px; }
-    .fine a { color: var(--accent); }
-    footer { border-top: 1px solid var(--line); padding: 42px 0 28px; color: var(--muted); }
-    .foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px; }
-    footer a { color: var(--ink); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-    footer h3 { margin: 0 0 10px; color: white; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
-    footer ul { list-style: none; margin: 0; padding: 0; }
-    footer li { margin: 0 0 7px; }
-    .legal { margin-top: 28px; font-size: 13px; }
-    @media (max-width: 800px) {
-      .tools, .run, .foot { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
-      h1 { font-size: 42px; }
+    .note { margin: 14px 0 0; font-size: 14px; }
+    .note a { color: var(--warm); }
+    .fine { margin: 22px 0 0; color: var(--faint); font-size: 14px; }
+    .fine a { color: var(--warm); }
+
+    .site-foot {
+      border-top: 1px solid var(--line);
+      padding: 42px 0 28px;
+      color: var(--muted);
+    }
+    .foot {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 24px;
+    }
+    .site-foot a { text-decoration: none; }
+    .site-foot a:hover { text-decoration: underline; }
+    .site-foot h3 {
+      margin: 0 0 10px;
+      color: white;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .site-foot ul { list-style: none; margin: 0; padding: 0; }
+    .site-foot li { margin: 0 0 8px; }
+    .legal { margin-top: 28px; font-size: 13px; color: var(--faint); }
+
+    @media (max-width: 980px) {
+      .hero-grid, .story-grid, .runs, .foot, .specs { grid-template-columns: 1fr; }
+      .specs div, .specs div:nth-child(even) {
+        padding: 22px 0;
+        border-left: 0;
+      }
+      .hero-grid { min-height: 0; padding-top: 12px; }
+      .set, .stage-set { margin: 0 auto; }
+      .hull { animation: none; transform: rotateY(-9deg) rotateX(6deg); }
+      .feature { max-width: 86%; }
+      .contents-in { display: flex; overflow: auto; }
+      .contents a { flex: none; }
+    }
+    @media (max-width: 760px) {
+      .wrap { width: min(1180px, calc(100% - 32px)); }
+      .links {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        flex-direction: column;
+        gap: 14px;
+        padding: 8px 20px 18px;
+        background: rgba(7, 8, 11, 0.96);
+        border-bottom: 1px solid var(--line);
+      }
+      .links.is-open { display: flex; }
+      .menu-btn { display: inline-flex; }
+      .bar-in .btn { min-height: 40px; padding: 0 14px; }
+      h1 { font-size: 52px; }
+      section { padding: 64px 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
     }
   </style>
 </head>
 <body>
+  <a class="skip" href="#content">Skip to content</a>
+  <div class="grain" aria-hidden="true"></div>
+
   <header class="bar">
-    <div class="wrap nav">
-      <a class="brand" href="#top"><img src="logo.svg" alt="" /> Smart TV</a>
-      <nav class="nav-links">
+    <div class="wrap bar-in">
+      <a class="brand" href="#top"><img src="logo.svg" width="34" height="34" alt="" /> Smart TV</a>
+      <nav class="links" id="menu">
         <a href="#home">Home</a>
+        <a href="#remote">Remote</a>
         <a href="#apps">Apps</a>
-        <a href="#run">Run it</a>
+        <a href="#files">My PC</a>
+        <a href="#sources">Sources</a>
         <a href="guide.md">Guide</a>
       </nav>
-      <div class="end"><a class="btn fill" href="#run">Run it</a></div>
+      <div class="bar-end">
+        <a class="btn btn-fill" href="#run">Run it</a>
+        <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu">Menu</button>
+      </div>
     </div>
   </header>
 
-  <main id="top">
-    <div class="hero">
-      <div class="wrap">
-        <p class="kicker">Smart TV · a 10-foot home</p>
-        <h1>A launcher for the couch.<span class="accent">Drive it with a remote.</span></h1>
-        <p class="sub">Rows, apps, search, and your own files, in a browser or as a Windows app. Arrow keys, a gamepad, or the on-screen pad move the focus.</p>
-        <div class="hero-actions">
-          <a class="btn fill" href="#run">Run it</a>
-          <a class="btn line" href="guide.md">Read the guide</a>
+  <main id="content">
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="kicker">Smart TV · version 13</p>
+          <h1>The set is <em>this computer.</em></h1>
+          <p class="lede">A 10-foot home screen. Rows, the sites you add, search, and the files on this PC. Open it in a browser, or let the Windows app take the display.</p>
+          <div class="hero-actions">
+            <a class="btn btn-fill" href="#run">Run it</a>
+            <a class="btn btn-line" href="guide.md">Read the guide</a>
+          </div>
+          <ul class="inputs">
+            <li>Arrow keys</li>
+            <li>Gamepad</li>
+            <li>TV remote</li>
+            <li>On-screen pad</li>
+          </ul>
         </div>
-      </div>
-      <img class="mark" src="logo.svg" alt="Smart TV" />
-    </div>
 
-    <section id="home" class="wash">
-      <div class="wrap">
-        <div class="center">
-          <h2>What you get on Home</h2>
-          <p class="lead">The screen is built for a television. Focus moves to the nearest item, and each row remembers where you were.</p>
-        </div>
-        <div class="tools">
-          <article class="tool"><strong>Continue watching</strong><span>While the app is open, a page you open can sit at the front of the row. Close Smart TV and that row is gone.</span></article>
-          <article class="tool"><strong>Profiles</strong><span>The circle by the clock is a profile. Each person keeps their own Continue watching and My List.</span></article>
-          <article class="tool"><strong>Your apps</strong><span>Add a website or a PC program. Move, rename, hide, or remove any tile.</span></article>
-          <article class="tool"><strong>My PC</strong><span>Browse folders with the remote and play videos, music, and photos, with resume and a slideshow.</span></article>
-          <article class="tool"><strong>Search</strong><span>An on-screen keyboard, genre chips, and voice where the browser supports it.</span></article>
-          <article class="tool"><strong>Setup</strong><span>The first run picks a Minimal or Busy Home, your apps, the weather, and a wallpaper.</span></article>
+        <div class="set">
+          <div class="space" aria-hidden="true"></div>
+          <div class="floor" aria-hidden="true"></div>
+          <div class="glow" aria-hidden="true"></div>
+          <div class="stage3d">
+          <div class="hull">
+          <div class="bezel">
+            <div class="screen" data-hero>
+              <div class="canvas">
+              <div class="poster art-low" data-poster></div>
+              <div class="scrim"></div>
+              <div class="chrome">
+                <div class="tabs">
+                  <span>Search</span>
+                  <span class="on">Home</span>
+                  <span>Apps</span>
+                  <span>My PC</span>
+                  <span>My List</span>
+                </div>
+                <div class="chrome-end">
+                  <time data-clock>9:41</time>
+                  <span class="avatar" title="Profile">K</span>
+                </div>
+              </div>
+              <div class="feature">
+                <p class="eyebrow" data-kicker>Featured today</p>
+                <h2 data-title>Low Voltage</h2>
+                <p class="meta" data-meta>Sci-fi · 2025 · 118 min</p>
+                <p class="blurb" data-blurb>A repair crew keeps a district lit after the grid goes quiet.</p>
+                <div class="pills">
+                  <span class="pill play">Play</span>
+                  <span class="pill ghost">My List</span>
+                </div>
+              </div>
+              <div class="shelf">
+                <p>Continue watching</p>
+                <div class="row">
+                  <div class="wide c-night"><b>Night Market</b><div class="barline"><i style="--p:42%"></i></div></div>
+                  <div class="wide c-copper"><b>Copper Line</b><div class="barline"><i style="--p:18%"></i></div></div>
+                  <div class="wide c-harbor"><b>Harbor Lights</b><div class="barline"><i style="--p:64%"></i></div></div>
+                </div>
+              </div>
+              </div>
+            </div>
+            <i class="led" aria-hidden="true"></i>
+          </div>
+          <div class="pedestal" aria-hidden="true"></div>
+          <div class="plinth" aria-hidden="true"></div>
+          </div>
+          </div>
+          <p class="caption">The home screen, with the sample titles that ship in the repository.</p>
         </div>
       </div>
     </section>
 
-    <section id="apps">
+    <nav class="contents" aria-label="On this page">
+      <div class="wrap contents-in">
+        <a href="#home"><b>01</b> Home</a>
+        <a href="#remote"><b>02</b> Remote</a>
+        <a href="#apps"><b>03</b> Apps</a>
+        <a href="#files"><b>04</b> My PC</a>
+        <a href="#sources"><b>05</b> Sources</a>
+        <a href="#run"><b>06</b> Run it</a>
+      </div>
+    </nav>
+
+    <section id="screen">
       <div class="wrap">
-        <div class="center">
-          <h2>Apps stay in the window</h2>
-          <p class="lead">On Windows, streaming apps open inside Smart TV. Hold Back and it asks before you leave. Home then zooms and fades in. HDMI, Chrome, and the desktop still use the source line.</p>
+        <div class="center-head">
+          <p class="kicker">From the sofa</p>
+          <h2>One focus. The whole room.</h2>
+          <p>The nearest item in each direction. Each row remembers where you were. The edge of a row bounces. Hold OK for options.</p>
         </div>
-        <div class="tools">
-          <article class="tool"><strong>Inside the TV</strong><span>The app fills this window. Back goes back in the app. Hold Back asks if you want to go Home, then Home zooms and fades in.</span></article>
-          <article class="tool"><strong>Nothing kept from the sites</strong><span>Sign-ins inside the TV live in memory. Close the app and they are gone. The public page stores nothing.</span></article>
-          <article class="tool"><strong>Source</strong><span>HDMI 1 is Smart TV. HDMI 2 opens a browser. HDMI 3 shows the desktop. Coming back from those plays the source screen.</span></article>
+        <div class="story-grid">
+          <div class="chapters" role="tablist" aria-orientation="vertical" aria-label="Scenes on the launcher">
+            <button class="chapter is-on" id="home" role="tab" aria-selected="true" aria-controls="stage" tabindex="0" data-scene="home" type="button">
+              <strong><span class="num">01</span>Home</strong>
+              <span class="desc">Artwork fills the screen and follows focus. The featured title rotates. Scroll back to the top and the navigation bar comes with it.</span>
+            </button>
+            <button class="chapter" id="remote" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1" data-scene="remote" type="button">
+              <strong><span class="num">02</span>Remote</strong>
+              <span class="desc">Arrow keys, the on-screen pad, a gamepad, LG and Samsung remotes, a mouse, touch, and the browser Back button all move the same focus.</span>
+            </button>
+            <button class="chapter" id="apps" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1" data-scene="apps" type="button">
+              <strong><span class="num">03</span>Apps</strong>
+              <span class="desc">On Windows, a site opens inside Smart TV. Up to four stay loaded. Back goes back in the app. Hold Back, or the Home key, asks before you go Home. Home then zooms and fades in.</span>
+            </button>
+            <button class="chapter" id="files" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1" data-scene="files" type="button">
+              <strong><span class="num">04</span>My PC</strong>
+              <span class="desc">With the companion running, the remote browses this computer. Video, music, and photos play with resume, Next and Previous, and a slideshow.</span>
+            </button>
+            <button class="chapter" id="sources" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1" data-scene="sources" type="button">
+              <strong><span class="num">05</span>Sources</strong>
+              <span class="desc">HDMI 1 is Smart TV. HDMI 2 is a browser. HDMI 3 is the desktop. Switching inputs plays the source screen.</span>
+            </button>
+          </div>
+
+          <div class="stage-set">
+            <div class="space" aria-hidden="true"></div>
+            <div class="floor" aria-hidden="true"></div>
+            <div class="stage3d">
+            <div class="hull">
+            <div class="bezel">
+              <div class="screen stage" id="stage" data-scene="home" role="tabpanel" aria-labelledby="home">
+                <div class="canvas">
+                <div class="scene scene-home">
+                  <div class="scene-pad">
+                    <div class="mini-nav"><span class="on">Home</span><span>Apps</span><span>My PC</span><span>My List</span></div>
+                    <p class="row-label">Your apps</p>
+                    <div class="row">
+                      <div class="wide c-low"><b>My PC</b></div>
+                      <div class="wide c-night"><b>Cinema</b></div>
+                      <div class="wide c-harbor"><b>Series</b></div>
+                    </div>
+                    <div class="grow">
+                      <p class="row-label">Top 10 today</p>
+                      <div class="row">
+                        <div class="tall c-harbor"><span class="rank">1</span><b>Harbor Lights</b></div>
+                        <div class="tall c-low"><span class="rank">2</span><b>Low Voltage</b></div>
+                        <div class="tall c-night"><span class="rank">3</span><b>Night Market</b></div>
+                        <div class="tall c-copper"><span class="rank">4</span><b>Copper Line</b></div>
+                        <div class="tall c-window"><span class="rank">5</span><b>Open Window</b></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="scene scene-remote">
+                  <div class="scene-pad">
+                    <div class="mini-nav"><span>Search</span><span class="on">Home</span><span>Apps</span></div>
+                    <p class="row-label">Movies</p>
+                    <div class="hop-row">
+                      <div class="ring" aria-hidden="true"></div>
+                      <div class="row">
+                        <div class="wide c-low"><b>Low Voltage</b></div>
+                        <div class="wide c-salt"><b>Salt and Signal</b></div>
+                        <div class="wide c-glass"><b>Glass Season</b></div>
+                        <div class="wide c-night"><b>Night Market</b></div>
+                      </div>
+                    </div>
+                    <p class="hint">Hold OK for options. The row remembers this spot.</p>
+                  </div>
+                </div>
+                <div class="scene scene-apps">
+                  <div class="site-bar"><span>Inside the window</span><span>Back · hold Back</span></div>
+                  <div class="site-art art-harbor"></div>
+                  <span class="open-mark">Open</span>
+                  <p class="site-title">Harbor Lights</p>
+                  <div class="ask">
+                    <p>Go Home?</p>
+                    <div><span>Stay</span><span class="hot">Home</span></div>
+                  </div>
+                </div>
+                <div class="scene scene-files">
+                  <div class="scene-pad">
+                    <p class="path">This PC / Videos</p>
+                    <div class="files">
+                      <div class="file"><b>Films</b><small>Folder</small></div>
+                      <div class="file on"><b>Night Market</b><small>Video · resume</small><div class="barline"><i style="--p:42%"></i></div></div>
+                      <div class="file"><b>Concert Hour</b><small>Video</small></div>
+                      <div class="file"><b>Field Notes</b><small>Video</small></div>
+                      <div class="file"><b>Music</b><small>Folder</small></div>
+                      <div class="file"><b>Photos</b><small>Slideshow</small></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="scene scene-sources">
+                  <div class="hdmi on"><span>HDMI 1</span><b>Smart TV</b></div>
+                  <div class="hdmi"><span>HDMI 2</span><b>Browser</b></div>
+                  <div class="hdmi"><span>HDMI 3</span><b>Desktop</b></div>
+                </div>
+                </div>
+              </div>
+              <i class="led" aria-hidden="true"></i>
+            </div>
+            <div class="pedestal" aria-hidden="true"></div>
+            <div class="plinth" aria-hidden="true"></div>
+            </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="run" class="wash">
-      <div class="wrap center">
-        <h2>Run it</h2>
-        <p class="lead">The browser launcher needs Python 3. The Windows app needs Node.js. Both are in this repository.</p>
-        <div class="run">
-          <article class="card">
-            <div class="os">Browser</div>
+    <section>
+      <div class="wrap">
+        <div class="center-head">
+          <p class="kicker">The room</p>
+          <h2>It keeps the quiet parts.</h2>
+        </div>
+        <dl class="specs">
+          <div>
+            <dt>Profiles</dt>
+            <dd>The circle by the clock is a person. Each profile keeps its own My List and sample Continue watching. Add, rename, switch, or remove one.</dd>
+          </div>
+          <div>
+            <dt>Search</dt>
+            <dd>An on-screen keyboard, genre shortcuts, live results, and voice where the browser supports it.</dd>
+          </div>
+          <div>
+            <dt>Preview</dt>
+            <dd>A one-minute preview. Controls hide on their own. Skip 10 seconds, captions, and an Up next countdown.</dd>
+          </div>
+          <div>
+            <dt>The room</dt>
+            <dd>The same layout at 1080p and 4K. Reduce motion, larger text, a high-contrast focus ring, and an ambient screen when the room is idle.</dd>
+          </div>
+          <div>
+            <dt>Wallpaper</dt>
+            <dd>Home can sit on this computer’s desktop wallpaper. A volume panel appears when the volume changes.</dd>
+          </div>
+          <div>
+            <dt>Weather</dt>
+            <dd>A forecast for this computer while the app is open. The place is not written down.</dd>
+          </div>
+          <div>
+            <dt>Sign-in</dt>
+            <dd>Sign in once inside the Windows app and it stays signed in. Settings can sign out of all apps. The public page stores nothing.</dd>
+          </div>
+          <div>
+            <dt>First run</dt>
+            <dd>Setup picks a Minimal or Busy Home, your apps, the weather, and a wallpaper. Move, rename, hide, or remove any app afterward.</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section id="run">
+      <div class="wrap">
+        <div class="center-head">
+          <p class="kicker">Run it</p>
+          <h2>Open the launcher.</h2>
+          <p>The browser path needs Python 3. The Windows app needs Node.js. Both live in this repository.</p>
+        </div>
+        <div class="runs">
+          <article class="run">
+            <p class="os">Browser</p>
             <h3>This computer</h3>
-            <p>Starts the companion and opens the launcher. My PC, Chrome shortcuts, wallpaper, and volume need this.</p>
-            <pre>py server.py</pre>
+            <p>Starts the companion on this machine and opens the launcher. My PC, Chrome shortcuts, wallpaper, volume, and sources need it.</p>
+            <pre><code>py server.py</code></pre>
+            <p class="note">From a TV on your network: <code>py server.py --lan</code></p>
           </article>
-          <article class="card">
-            <div class="os">Windows</div>
+          <article class="run">
+            <p class="os">Windows</p>
             <h3>Full-screen app</h3>
-            <p>Takes the display like a TV box. Apps open inside the window. Details are in the Electron guide.</p>
-            <pre>npm install
-npm start</pre>
+            <p>Takes the display. Sites open inside the window, and the remote’s Back closes them. The Electron guide has the rest.</p>
+            <pre><code>npm install
+npm start</code></pre>
+            <p class="note"><a href="electron.md">Windows app guide</a></p>
           </article>
         </div>
-        <p class="fine">The guide covers keys, the network address, and Google TV hardware. <a href="guide.md">Guide</a> · <a href="electron.md">Windows app</a> · <a href="https://github.com/ktsoaela/smart_tv">Source</a></p>
+        <p class="fine">A demo with no PC features is <code>index.html</code> in the repository. Keys, the network address, and Google TV hardware are in the <a href="guide.md">guide</a>. Source is on <a href="https://github.com/ktsoaela/smart_tv">GitHub</a>.</p>
       </div>
     </section>
   </main>
 
-  <footer>
+  <footer class="site-foot">
     <div class="wrap foot">
       <div>
-        <a class="brand" href="#top"><img src="logo.svg" alt="" /> Smart TV</a>
-        <p>A TV launcher you run in a browser and drive with a remote.</p>
+        <a class="brand" href="#top"><img src="logo.svg" width="34" height="34" alt="" /> Smart TV</a>
+        <p>A TV launcher you run in a browser and drive with a remote. A television can still use a Google TV Streamer. This repository is the launcher you can open and try.</p>
       </div>
       <div>
         <h3>On this page</h3>
         <ul>
           <li><a href="#home">Home</a></li>
           <li><a href="#apps">Apps</a></li>
+          <li><a href="#files">My PC</a></li>
           <li><a href="#run">Run it</a></li>
         </ul>
       </div>
@@ -208,10 +1189,107 @@ npm start</pre>
           <li><a href="guide.md">Guide</a></li>
           <li><a href="electron.md">Windows app</a></li>
           <li><a href="https://github.com/ktsoaela/smart_tv">Repository</a></li>
+          <li><a href="https://github.com/ktsoaela">Khotso Tsoaela</a></li>
         </ul>
       </div>
     </div>
     <div class="wrap legal">MIT license. Copyright 2026 Khotso Tsoaela.</div>
   </footer>
+
+  <script>
+    (function () {
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var bar = document.querySelector(".bar");
+      var onScroll = function () { bar.classList.toggle("is-stuck", window.scrollY > 8); };
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+
+      var menuBtn = document.querySelector(".menu-btn");
+      var menu = document.getElementById("menu");
+      menuBtn.addEventListener("click", function () {
+        var open = menu.classList.toggle("is-open");
+        menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        menuBtn.textContent = open ? "Close" : "Menu";
+      });
+      menu.addEventListener("click", function (event) {
+        if (event.target.closest("a")) {
+          menu.classList.remove("is-open");
+          menuBtn.setAttribute("aria-expanded", "false");
+          menuBtn.textContent = "Menu";
+        }
+      });
+
+      var clock = document.querySelector("[data-clock]");
+      var tick = function () {
+        clock.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      };
+      tick();
+      window.setInterval(tick, 15000);
+
+      var shows = [
+        { art: "art-low", glow: "rgba(122, 162, 255, 0.55)", kicker: "Featured today", title: "Low Voltage", meta: "Sci-fi · 2025 · 118 min", blurb: "A repair crew keeps a district lit after the grid goes quiet." },
+        { art: "art-harbor", glow: "rgba(110, 200, 255, 0.5)", kicker: "Featured", title: "Harbor Lights", meta: "Drama · 2024 · 52 min", blurb: "A port town keeps score of every ship that leaves after dark." },
+        { art: "art-window", glow: "rgba(182, 212, 138, 0.45)", kicker: "Featured", title: "Open Window", meta: "Drama · 2026 · 109 min", blurb: "Neighbors pass a summer by talking across one shared courtyard." },
+        { art: "art-salt", glow: "rgba(62, 199, 194, 0.48)", kicker: "Featured", title: "Salt and Signal", meta: "Thriller · 2025 · 104 min", blurb: "A radio operator traces a voice that only arrives with the tide." }
+      ];
+      var poster = document.querySelector("[data-poster]");
+      var rootStyle = document.documentElement.style;
+      var showIndex = 0;
+      function applyShow(index) {
+        var show = shows[index];
+        poster.className = "poster " + show.art;
+        poster.style.opacity = "1";
+        rootStyle.setProperty("--glow", show.glow);
+        document.querySelector("[data-kicker]").textContent = show.kicker;
+        document.querySelector("[data-title]").textContent = show.title;
+        document.querySelector("[data-meta]").textContent = show.meta;
+        document.querySelector("[data-blurb]").textContent = show.blurb;
+      }
+      if (!reduce) {
+        window.setInterval(function () {
+          poster.style.opacity = "0";
+          window.setTimeout(function () {
+            showIndex = (showIndex + 1) % shows.length;
+            applyShow(showIndex);
+          }, 280);
+        }, 6800);
+      }
+
+      var tabs = Array.prototype.slice.call(document.querySelectorAll(".chapter"));
+      var stage = document.getElementById("stage");
+      function setScene(id) {
+        stage.setAttribute("data-scene", id);
+        tabs.forEach(function (tab) {
+          var on = tab.getAttribute("data-scene") === id;
+          tab.classList.toggle("is-on", on);
+          tab.setAttribute("aria-selected", on ? "true" : "false");
+          tab.tabIndex = on ? 0 : -1;
+          if (on) stage.setAttribute("aria-labelledby", tab.id);
+        });
+      }
+      tabs.forEach(function (tab) {
+        tab.addEventListener("click", function () { setScene(tab.getAttribute("data-scene")); });
+      });
+      document.querySelector(".chapters").addEventListener("keydown", function (event) {
+        var current = tabs.indexOf(document.activeElement);
+        if (current < 0) return;
+        var next = current;
+        if (event.key === "ArrowDown" || event.key === "ArrowRight") next = (current + 1) % tabs.length;
+        else if (event.key === "ArrowUp" || event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        tabs[next].focus();
+        setScene(tabs[next].getAttribute("data-scene"));
+      });
+      function sceneFromHash() {
+        var id = location.hash.replace("#", "");
+        if (tabs.some(function (tab) { return tab.id === id; })) setScene(id);
+      }
+      sceneFromHash();
+      window.addEventListener("hashchange", sceneFromHash);
+    }());
+  </script>
 </body>
 </html>

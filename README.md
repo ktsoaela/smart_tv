@@ -41,7 +41,7 @@ A television gets Google TV from a Google TV Streamer on HDMI, or from a set tha
 - **Feels like a TV.** A volume panel when the volume changes, your desktop wallpaper behind Home, and a Source button for the browser or the desktop.
 - **Is yours to arrange.** Move, rename, hide, or remove any app. Keep titles, links, and files in My List in your own order.
 - **Sets itself up like a new TV.** First-run setup picks a Minimal or Busy Home, your apps, the weather, and a wallpaper. The weather lookup is not written down.
-- **Does not keep the sites you open.** Sign-ins inside the Windows app live in memory and are gone when Smart TV closes. The public page stores nothing. My List and the launcher's own settings stay in this browser.
+- **Remembers your sign-ins.** Sign in to Google or a streaming service once inside the Windows app and it stays signed in. Settings → TV mode → Sign out of all apps clears them. The public page stores nothing. My List and the launcher's own settings stay in this browser.
 
 ---
 

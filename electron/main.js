@@ -5,7 +5,7 @@
 // - The UI is the same front end as the browser version (index.html, css/, js/),
 //   served from the private app://tv scheme. Its /api/* calls are answered here (api.js).
 // - Streaming apps open inside the TV window by default (apps.js): web views laid over the
-//   TV page. The in-TV session is kept in memory only. Protected video needs the
+//   TV page. Sign-ins made inside the TV are saved and remembered. Protected video needs the
 //   Widevine build of Electron from castLabs; see docs/electron.md.
 // - Optional: open apps in Chrome instead, either a separate kiosk "TV" profile that the
 //   remote's Back closes, or your everyday Chrome profile.

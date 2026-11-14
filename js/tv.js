@@ -1606,6 +1606,7 @@ function renderBody() {
     files: renderFiles,
     media: renderMedia,
     programs: renderPrograms,
+    recommend: renderRecommend,
     setup: renderSetup,
     home: renderHome,
     apps: renderApps,
@@ -1627,6 +1628,7 @@ function screenTitle() {
   if (state.screen === "files" && state.path) return baseName(state.path);
   if (state.screen === "setup") return "Setup";
   if (state.screen === "programs") return "Add a program";
+  if (state.screen === "recommend") return "Site recommendations";
   const names = { home: "Home", apps: "Apps", list: "My List", search: "Search", settings: "Settings", files: "My PC" };
   return names[state.screen] || "Home";
 }
@@ -2197,6 +2199,7 @@ function activate(el) {
     case "add-app": openAddApp(); break;
     case "unhide": unhideApp(id); break;
     case "pick-program": addProgram(id, el.dataset.name || "Program"); break;
+    case "pick-rec": addRecommended(id); break;
     case "list-add": addListLink(); break;
     case "open-link": openLink(el.dataset.lid); break;
     case "open-history": openHistory(el.dataset.hid); break;
@@ -3520,7 +3523,7 @@ async function connectCompanion() {
   }
   await Promise.allSettled([refreshApps(false), loadLibrary(), refreshVolume(false), loadHost()]);
   applyWallpaper();
-  if (["home", "apps", "settings", "files", "setup", "programs"].includes(state.screen)) render(false);
+  if (["home", "apps", "settings", "files", "setup", "programs", "recommend"].includes(state.screen)) render(false);
   // Windows app: warm up the first two apps on Home so they open instantly.
   if (appsOpenInside()) {
     homeApps().filter((a) => a.url && a.mode !== "program").slice(0, 2).forEach((a, i) => {
@@ -3964,9 +3967,104 @@ function openAddApp() {
         icon: "pc",
         run: () => (server.canLaunch ? openPrograms() : toast("Start the companion (py server.py) on this PC to add programs", "pc"))
       },
-      { label: "Android app (APK)", icon: "android", run: explainApk }
+      { label: "Android app (APK)", icon: "android", run: explainApk },
+      { label: "Site recommendations", icon: "tv", run: openRecommend }
     ]
   });
+}
+
+/* Free, licensed streaming sites, grouped like the sections on fmhy.net/video. */
+const RECOMMENDED_SECTIONS = [
+  { title: "Free w/ Ads", sites: [
+    { name: "Tubi", url: "https://tubitv.com/", blurb: "Free movies and TV with ads" },
+    { name: "Pluto TV", url: "https://pluto.tv/", blurb: "Free live channels and on-demand shows" },
+    { name: "Plex", url: "https://watch.plex.tv/", blurb: "Free movies, TV, and live channels" },
+    { name: "JustWatch", url: "https://www.justwatch.com/us?monetization_types=free", blurb: "Finds where a title streams for free" },
+    { name: "Popcornflix", url: "https://popcornflix.com/", blurb: "Free full-length movies" }
+  ] },
+  { title: "Video Streaming", sites: [
+    { name: "YouTube", url: "https://www.youtube.com/", blurb: "Videos, channels, and free movies" },
+    { name: "Vimeo", url: "https://vimeo.com/", blurb: "Short films and creator videos" },
+    { name: "Dailymotion", url: "https://www.dailymotion.com/", blurb: "News, sport, and entertainment clips" },
+    { name: "Internet Archive", url: "https://archive.org/details/movies", blurb: "Public-domain films and classics" },
+    { name: "PeerTube", url: "https://joinpeertube.org/browse-content", blurb: "Open, community-run video" }
+  ] },
+  { title: "Anime Streaming", sites: [
+    { name: "Crunchyroll", url: "https://www.crunchyroll.com/", blurb: "Anime, with a free tier" },
+    { name: "RetroCrush", url: "https://www.retrocrush.tv/", blurb: "Free classic anime" },
+    { name: "Tubi Anime", url: "https://tubitv.com/category/anime", blurb: "Free anime with ads" },
+    { name: "Muse Asia", url: "https://www.youtube.com/@MuseAsia", blurb: "Official anime on YouTube" },
+    { name: "Ani-One Asia", url: "https://www.youtube.com/@AniOneAsia", blurb: "Official anime on YouTube" }
+  ] },
+  { title: "Cartoon Streaming", sites: [
+    { name: "PBS Kids", url: "https://pbskids.org/videos", blurb: "Free kids' shows" },
+    { name: "Pluto TV Kids", url: "https://pluto.tv/on-demand/categories/kids", blurb: "Free cartoons on demand" },
+    { name: "Tubi Kids", url: "https://tubitv.com/category/kids_shows", blurb: "Free kids' movies and shows" },
+    { name: "Cartoon Network", url: "https://www.youtube.com/@cartoonnetwork", blurb: "Official clips and episodes" },
+    { name: "Kanopy Kids", url: "https://www.kanopy.com/", blurb: "Free with a library card" }
+  ] },
+  { title: "TV Streaming", sites: [
+    { name: "Pluto TV Live", url: "https://pluto.tv/live-tv", blurb: "Hundreds of free live channels" },
+    { name: "The Roku Channel", url: "https://therokuchannel.roku.com/", blurb: "Free live TV and on demand" },
+    { name: "Samsung TV Plus", url: "https://www.samsungtvplus.com/", blurb: "Free live channels" },
+    { name: "Plex Live TV", url: "https://watch.plex.tv/live-tv", blurb: "Free live channels" },
+    { name: "Xumo Play", url: "https://play.xumo.com/", blurb: "Free live TV and movies" }
+  ] },
+  { title: "Live Sports", sites: [
+    { name: "DAZN", url: "https://www.dazn.com/", blurb: "Live sport, with some free events" },
+    { name: "Red Bull TV", url: "https://www.redbull.com/int-en/discover", blurb: "Free live action sports" },
+    { name: "FIFA+", url: "https://www.plus.fifa.com/", blurb: "Free live football and archives" },
+    { name: "SuperSport", url: "https://supersport.com/", blurb: "Live sport and scores" },
+    { name: "Olympics", url: "https://www.olympics.com/en/video", blurb: "Free Olympic sport" }
+  ] },
+  { title: "Sports Replays", sites: [
+    { name: "NBA", url: "https://www.youtube.com/@NBA", blurb: "Official game highlights" },
+    { name: "NFL", url: "https://www.youtube.com/@NFL", blurb: "Official game highlights" },
+    { name: "FIFA", url: "https://www.youtube.com/@fifa", blurb: "Official match highlights" },
+    { name: "SuperSport", url: "https://www.youtube.com/@SuperSportTV", blurb: "Official highlights" },
+    { name: "Formula 1", url: "https://www.youtube.com/@Formula1", blurb: "Official race highlights" }
+  ] }
+];
+
+function openRecommend() {
+  pushScreen(() => {
+    state.screen = "recommend";
+    state.focusKey = null;
+  });
+}
+
+function customWebAppFor(url) {
+  return state.prefs.customApps.find((c) => c.kind === "web" && c.url === url);
+}
+
+function renderRecommend() {
+  const blocks = RECOMMENDED_SECTIONS.map((section, s) => {
+    const tiles = section.sites.map((site, i) => `
+      <button type="button" class="folder-tile" data-key="rec-${s}-${i}" data-action="pick-rec" data-id="${s}-${i}"${s === 0 && i === 0 ? ' data-preferred="1"' : ""}>
+        <span class="folder-ic">${icon("globe")}</span>
+        <span class="folder-text"><span class="folder-name">${i + 1}. ${esc(site.name)}</span><span class="folder-cap">${customWebAppFor(site.url) ? "Already on Home" : `${esc(site.blurb)} · ${esc(hostOf(site.url))}`}</span></span>
+      </button>`).join("");
+    return `
+      <h2 class="block-title${s ? " block-title--gap" : ""}">${esc(section.title)}</h2>
+      <div class="grid grid--folders" data-zone="recommend-${s}">${tiles}</div>`;
+  }).join("");
+  return `
+    <div class="page">
+      ${pageHead("Site recommendations", "Top 5 free, licensed sites for each kind of streaming. Pick one to put it on Home.")}
+      ${blocks}
+    </div>`;
+}
+
+function addRecommended(id) {
+  const [s, i] = String(id).split("-").map(Number);
+  const site = (RECOMMENDED_SECTIONS[s] || { sites: [] }).sites[i];
+  if (!site) return;
+  if (customWebAppFor(site.url)) {
+    toast(`${site.name} is already on Home`, "check");
+    return;
+  }
+  createCustomApp({ kind: "web", name: site.name, url: site.url });
+  render(false);
 }
 
 function normalizeUrl(raw) {
@@ -4580,7 +4678,7 @@ function tvModePane() {
       : "Covers the taskbar and desktop like a TV. Ctrl+Shift+Q always exits.")
     + row("startWithWindows", "Start with Windows", "Opens Smart TV when you sign in to Windows, like a TV box that's always on.")
     + `<h3 class="pane-sub">Streaming apps open in</h3>`
-    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded until you quit. Back goes back. Hold Back and it asks before returning Home. Sign-ins are forgotten when Smart TV closes.")
+    + choice("inside", "Inside the TV (recommended)", "Apps open in this window like changing input, and stay loaded until you quit. Back goes back. Hold Back and it asks before returning Home. Sign in once and the TV remembers you.")
     + choice("tv", "Chrome, TV profile", "A separate full-screen Chrome. Slower to open. Back (Esc) closes it and returns here.")
     + choice("chrome", "Chrome, your profile", "Uses the accounts already signed in to Chrome. Alt+F4 closes it.")
     + `<p class="wx-status">${icon(h.drm === "ready" ? "check" : "info")}<span>${esc(h.drm === "ready"

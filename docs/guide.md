@@ -64,7 +64,7 @@ The browser Back button and the Android back gesture also go back one screen.
 | Preview | A 60-second preview. The controls hide after 4 seconds; any key brings them back. Left and right skip 10 seconds. Captions and Up next are optional |
 | Ambient | After two minutes idle, slow artwork and the time. Any key returns |
 
-Weather is looked up while the app is open and is not written down. The preview is a timer on generated artwork. My List and the launcher's own settings stay in this browser. The sites you open, and any sign-in inside the Windows app, are dropped when you close it. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
+Weather is looked up while the app is open and is not written down. The preview is a timer on generated artwork. My List and the launcher's own settings stay in this browser. Pages you open are dropped when you close it. A sign-in inside the Windows app is remembered until you choose Sign out of all apps. **Reset demo data** under Settings → About & reset restores the sample Continue watching row and clears My List.
 
 ### Setup
 
